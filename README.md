@@ -52,3 +52,25 @@ Die Seite `admin.html` zeigt den Gesamtstand und exportiert ihn als CSV.
 4. "Abmelden" löscht den Code vom Gerät.
 
 Bei Handyverlust den Code in Supabase löschen (siehe oben), dann ist er überall ungültig.
+
+## Admin trägt manuell ein
+
+In der Übersicht hat jede Strecke eine Taste "Ändern". Der Admin kann dort für jedes Kind
+"Fährt selbst" (mit Plätzen und Orten), "Sucht einen Platz" (mit Ort und Fahrer),
+"Anders geregelt" setzen und Mitfahrende entfernen. Die Familie sieht die Änderung auf ihrer Seite.
+
+Die Admin-Funktionen rufen die bestehenden Funktionen der Eltern-Seite auf, damit dieselben Regeln
+gelten (freie Plätze, Wechsel mit Mitfahrenden). Sie stehen in `sql/fg_anmerkung_zustieg_admin.sql`.
+
+## Anmerkung und anderer Ort
+
+Alle Angaben haben jetzt eine freiwillige Anmerkung (bis 200 Zeichen). Dazu gibt es einen anderen Ort
+(bis 100 Zeichen): Wer einen Platz sucht, wählt "Anderer Ort" und trägt ihn ein. Wer fährt, kann einen
+anderen Treffpunkt für Mitfahrende angeben. Die Anmerkung sehen nur die Beteiligten (Fahrer und Mitfahrende)
+und der Admin. Bei "Anders geregelt" sieht sie nur der Admin.
+
+### Einspielen, Reihenfolge
+
+1. In Supabase (SQL Editor) `sql/fg_anmerkung_zustieg_admin.sql` ausführen. Das ist die einzige neue Datei.
+   Voraussetzung: `fg_admin_uebersicht.sql` und `fg_mein_status_mitfahrende_mit_id.sql` sind schon eingespielt.
+2. Danach die Seiten veröffentlichen. Die bisherigen Seiten laufen auch nach Schritt 1 unverändert weiter.

@@ -75,10 +75,35 @@
   .login .check { display: flex; align-items: center; gap: 12px; min-height: 48px; margin-bottom: 14px; }
   .login .check input { width: 24px; height: 24px; flex: none; accent-color: var(--accent); }
   .login button { width: 100%; min-height: 52px; }
+  button.small { min-height: 40px; padding: 4px 12px; font-size: .9rem; margin-top: 6px; }
+  dialog { border: 1px solid var(--line); border-radius: 14px; padding: 16px; width: calc(100% - 24px); max-width: 480px;
+    color: var(--text); background: var(--card); }
+  dialog::backdrop { background: rgba(0, 0, 0, .45); }
+  dialog h2 { margin-top: 0; }
+  dialog fieldset { border: 0; padding: 0; margin: 0 0 8px; min-width: 0; }
+  dialog legend { font-weight: 700; padding: 0; margin-bottom: 8px; }
+  .opt { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 12px; margin: 0 0 8px;
+    border: 2px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
+  .opt:has(input:checked) { border-color: var(--accent); background: #e8f1fb; }
+  .opt:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .opt input { width: 24px; height: 24px; flex: none; accent-color: var(--accent); }
+  dialog label.field { display: block; font-weight: 700; margin: 12px 0 4px; }
+  dialog select, dialog input[type="text"], dialog textarea { width: 100%; min-width: 0; display: block; min-height: 48px;
+    font: inherit; color: var(--text); background: #fff; border: 2px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  dialog textarea { min-height: 88px; resize: vertical; line-height: 1.4; }
+  dialog select:focus, dialog input:focus, dialog textarea:focus { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  dialog .zaehler { color: var(--muted); font-size: .9rem; text-align: right; margin-top: 2px; }
+  dialog .hint { color: var(--muted); font-size: .9rem; margin: 4px 0 0; }
+  .anm { display: block; margin-top: 4px; padding-left: 8px; border-left: 3px solid var(--line); border-radius: 0; }
+  .pnl { border-top: 1px solid var(--soft-line); margin-top: 8px; padding-top: 4px; }
+  .btnrow { display: flex; gap: 10px; margin-top: 16px; }
+  .btnrow button { flex: 1; }
+  .mrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--soft-line); }
 </style>
 </head>
 <body>
 <main id="app" aria-live="polite"><p class="center">Einen Moment bitte.</p></main>
+<dialog id="editor" aria-labelledby="ed-titel"></dialog>
 
 <script>
 (function () {
@@ -155,7 +180,11 @@
     var data = null;
     try { var txt = await res.text(); data = txt ? JSON.parse(txt) : null; } catch (e) { data = null; }
     if (!res.ok) {
-      if (data && data.code === 'P0001') throw { kind: 'ungueltig', message: MSG_UNGUELTIG };
+      if (data && data.code === 'P0001') {
+        var m = String(data.message || '');
+        if (/Ungültiger Zugangslink/.test(m)) throw { kind: 'ungueltig', message: MSG_UNGUELTIG };
+        throw { kind: 'regel', message: m || 'Das hat leider nicht geklappt. Bitte versuche es noch einmal.' };
+      }
       if (data && data.code === 'PGRST202') throw { kind: 'fehlt', message: MSG_FEHLT };
       throw { kind: 'db', message: 'Das hat leider nicht geklappt. Bitte versuche es noch einmal.' };
     }
@@ -172,7 +201,9 @@
   // ---------- Daten ableiten ----------
   function leiteAb(s) {
     s = s || {};
-    var mit = Array.isArray(s.mitfahrende) ? s.mitfahrende : [];
+    var mitRoh = Array.isArray(s.mitfahrende) ? s.mitfahrende : [];
+    var mit = mitRoh.map(function (m) { return typeof m === 'string' ? m : ((m && m.name) || ''); });
+    var mitIds = mitRoh.map(function (m) { return (m && typeof m === 'object' && m.kind_id) ? m.kind_id : null; });
     var art = 'none';
     if (s.status === 'selbst') art = 'selbst';
     else if (s.status === 'suche') art = s.faehrt_mit ? 'gefunden' : 'suche';
@@ -184,9 +215,16 @@
       belegt: mit.length,
       frei: Math.max(0, angeboten - mit.length),
       orte: s.stationen || '',
-      ortTyp: s.status === 'suche' ? (s.ort_typ === 'wohnort' ? 'Wohnort' : 'Schule') : '',
+      ortTyp: s.status === 'suche'
+        ? (s.ort_typ === 'wohnort' ? 'Wohnort' : (s.ort_typ === 'anderer' ? 'Anderer Ort: ' + (s.ort_text || '') : 'Schule'))
+        : '',
+      ortText: s.ort_text || '',
+      anmerkung: s.anmerkung || '',
       faehrtMit: s.faehrt_mit || '',
       mitfahrende: mit,
+      mitIds: mitIds,
+      faehrtMitId: s.faehrt_mit_id || null,
+      ortRaw: s.ort_typ === 'wohnort' ? 'wohnort' : (s.status === 'suche' && s.ort_typ === 'anderer' ? 'anderer' : 'schule'),
       zeit: s.aktualisiert_am || null
     };
   }
@@ -232,8 +270,8 @@
   function csvErzeugen(liste) {
     var kopf = ['Kind', 'Jahrgang', 'Wohnort', 'Etwas angegeben'];
     ['Hinfahrt', 'Rückfahrt'].forEach(function (p) {
-      kopf.push(p + ' Stand', p + ' Plätze angeboten', p + ' Plätze noch frei', p + ' Orte',
-        p + ' Abholort bzw. Zielort', p + ' Fährt mit', p + ' Mitfahrende');
+      kopf.push(p + ' Stand', p + ' Plätze angeboten', p + ' Plätze noch frei', p + ' Orte', p + ' Treffpunkt',
+        p + ' Abholort bzw. Zielort', p + ' Fährt mit', p + ' Mitfahrende', p + ' Anmerkung');
     });
     kopf.push('Zuletzt geändert');
     var zeilen = [kopf];
@@ -241,7 +279,7 @@
       var r = [z.name, z.jahrgang, z.ort, z.angabe ? 'ja' : 'nein'];
       [z.hin, z.rueck].forEach(function (s) {
         r.push(ART_TEXT[s.art], s.art === 'selbst' ? s.angeboten : '', s.art === 'selbst' ? s.frei : '',
-          s.orte, s.ortTyp, s.faehrtMit, s.mitfahrende.join(', '));
+          s.orte, s.art === 'selbst' ? s.ortText : '', s.ortTyp, s.faehrtMit, s.mitfahrende.join(', '), s.anmerkung);
       });
       r.push(fmtZeit(z.zuletzt));
       zeilen.push(r);
@@ -265,17 +303,24 @@
   }
 
   // ---------- Darstellung ----------
-  function zelle(s) {
+  function zelle(s, z, r) {
     var kids = [h('span', { 'class': 'badge b-' + s.art, text: ART_TEXT[s.art] })];
     if (s.art === 'selbst') {
       kids.push(h('span', { 'class': 'detail', text: s.angeboten > 0
         ? s.angeboten + ' Plätze angeboten, noch ' + s.frei + ' frei' : 'Nimmt niemanden mit' }));
       if (s.orte) kids.push(h('span', { 'class': 'detail', text: 'Orte: ' + s.orte }));
+      if (s.ortText) kids.push(h('span', { 'class': 'detail', text: 'Treffpunkt: ' + s.ortText }));
       if (s.mitfahrende.length) kids.push(h('span', { 'class': 'detail', text: 'Mit dabei: ' + s.mitfahrende.join(', ') }));
     } else if (s.art === 'gefunden' || s.art === 'suche') {
       kids.push(h('span', { 'class': 'detail', text: (s.ortTyp ? 'Ort: ' + s.ortTyp : '') }));
       if (s.faehrtMit) kids.push(h('span', { 'class': 'detail', text: 'Fährt mit ' + s.faehrtMit }));
     }
+    if (s.anmerkung) kids.push(h('span', { 'class': 'anm', text: 'Anmerkung: ' + s.anmerkung }));
+    kids.push(h('button', {
+      type: 'button', 'class': 'secondary small', id: 'aendern-' + z.id + '-' + r, disabled: busy,
+      'aria-label': (r === 'hin' ? 'Hinfahrt' : 'Rückfahrt') + ' von ' + z.name + ' ändern',
+      onclick: function () { oeffneEditor(z.id, r); }, text: 'Ändern'
+    }));
     return h('td', null, kids);
   }
 
@@ -340,7 +385,7 @@
     liste.forEach(function (z) {
       tbody.appendChild(h('tr', null, [
         h('th', { scope: 'row' }, [z.name, h('span', { 'class': 'meta', text: 'Jahrgang ' + z.jahrgang + (z.ort ? ', ' + z.ort : '') })]),
-        zelle(z.hin), zelle(z.rueck),
+        zelle(z.hin, z, 'hin'), zelle(z.rueck, z, 'rueck'),
         h('td', { text: z.zuletzt ? fmtZeit(z.zuletzt) : 'Noch nie' })
       ]));
     });
@@ -425,21 +470,244 @@
       render();
     } catch (e) {
       busy = false;
-      if (e.kind === 'ungueltig') {
-        var war = quelle;
-        token = null; quelle = null; rows = null;
-        if (war === 'gespeichert') {
-          vergiss();
-          zeigeLogin('Der gespeicherte Code gilt nicht mehr. Bitte gib den Code noch einmal ein.');
-        } else if (war === 'eingabe') {
-          zeigeLogin('Dieser Code ist nicht gültig. Bitte prüfe ihn und versuche es noch einmal.');
-        } else {
-          zeigeLogin(MSG_UNGUELTIG + ' Du kannst den Code auch hier eingeben.');
-        }
-        return;
-      }
+      if (e.kind === 'ungueltig') { codeUngueltig(); return; }
       if (rows) { meldung = { type: 'err', text: e.message }; render(); }
-      else zeigeFehlerSeite(e.message, e.kind === 'net' || e.kind === 'db');
+      else zeigeFehlerSeite(e.message, e.kind === 'net' || e.kind === 'db' || e.kind === 'regel');
+    }
+  }
+
+  function codeUngueltig() {
+    var war = quelle;
+    schliesseEditor();
+    token = null; quelle = null; rows = null;
+    if (war === 'gespeichert') {
+      vergiss();
+      zeigeLogin('Der gespeicherte Code gilt nicht mehr. Bitte gib den Code noch einmal ein.');
+    } else if (war === 'eingabe') {
+      zeigeLogin('Dieser Code ist nicht gültig. Bitte prüfe ihn und versuche es noch einmal.');
+    } else {
+      zeigeLogin(MSG_UNGUELTIG + ' Du kannst den Code auch hier eingeben.');
+    }
+  }
+
+  // ---------- Manuelle Eingabe ----------
+  var dlg = document.getElementById('editor');
+  var ed = null;   // { id, r, choice, plaetze, orte, ort, fahrer, msg, busy }
+  // Das close-Ereignis kommt asynchron. Nur zurücksetzen, wenn der Dialog nicht schon wieder offen ist.
+  dlg.addEventListener('close', function () { if (!dlg.open) ed = null; });
+  function schliesseEditor() { ed = null; if (dlg.open) dlg.close(); }
+
+  function findRow(id) {
+    for (var i = 0; i < rows.length; i++) if (rows[i].id === id) return rows[i];
+    return null;
+  }
+
+  function fahrerListe(z, r) {
+    var aktuell = z[r].faehrtMitId;
+    var out = [];
+    rows.forEach(function (x) {
+      if (x.id === z.id) return;
+      var f = x[r];
+      if (f.art === 'selbst' && (f.frei > 0 || x.id === aktuell)) out.push({ id: x.id, name: x.name, frei: f.frei });
+    });
+    return out;
+  }
+
+  function oeffneEditor(id, r) {
+    var z = findRow(id);
+    if (!z) return;
+    var s = z[r];
+    var map = { selbst: 'selbst', suche: 'suche', gefunden: 'suche', anders: 'anderweitig' };
+    ed = {
+      id: id, r: r, choice: map[s.art] || null,
+      plaetze: s.art === 'selbst' ? s.angeboten : 0,
+      orte: s.art === 'selbst' ? s.orte : '',
+      ort: s.ortRaw,
+      zielort: s.ortRaw === 'anderer' ? s.ortText : '',
+      treffpunkt: s.art === 'selbst' ? s.ortText : '',
+      anmerkung: s.anmerkung,
+      fahrer: s.faehrtMitId || '',
+      msg: null, busy: false
+    };
+    renderEditor('ed-opt-' + (ed.choice || 'selbst'));
+    if (!dlg.open) dlg.showModal();
+    var f = document.getElementById('ed-opt-' + (ed.choice || 'selbst'));
+    if (f) f.focus();
+  }
+
+  function renderEditor(fokusId) {
+    if (!ed) return;
+    var z = findRow(ed.id);
+    if (!z) { schliesseEditor(); return; }
+    var s = z[ed.r];
+    var aktiv = fokusId || (document.activeElement && dlg.contains(document.activeElement) ? document.activeElement.id : null);
+    var b = ed.busy;
+    dlg.textContent = '';
+
+    dlg.appendChild(h('h2', { id: 'ed-titel', text: (ed.r === 'hin' ? 'Hinfahrt' : 'Rückfahrt') + ' für ' + z.name }));
+    dlg.appendChild(h('p', { 'class': 'sub', text: 'Jetzt: ' + ART_TEXT[s.art] + '. Die Familie sieht die Änderung auf ihrer Seite.' }));
+    if (ed.msg) dlg.appendChild(h('div', { 'class': 'msg ' + ed.msg.type, id: 'ed-msg', tabindex: '-1', role: ed.msg.type === 'err' ? 'alert' : 'status', text: ed.msg.text }));
+
+    var fs = h('fieldset', null, [h('legend', { text: 'Was gilt für diese Strecke?' })]);
+    [['selbst', 'Fährt selbst'], ['suche', 'Sucht einen Platz'], ['anderweitig', 'Anders geregelt']].forEach(function (o) {
+      var radio = h('input', { type: 'radio', name: 'ed-opt', id: 'ed-opt-' + o[0], value: o[0], disabled: b,
+        onchange: function (e) { ed.choice = e.target.value; ed.msg = null; renderEditor(e.target.id); } });
+      if (ed.choice === o[0]) radio.checked = true;
+      fs.appendChild(h('label', { 'class': 'opt' }, [radio, h('span', { text: o[1] })]));
+    });
+    dlg.appendChild(fs);
+
+    var pnl = h('div', { 'class': 'pnl' });
+    if (ed.choice === 'selbst') {
+      pnl.appendChild(h('label', { 'class': 'field', 'for': 'ed-plaetze', text: 'Wie viele Plätze sind frei?' }));
+      var sel = h('select', { id: 'ed-plaetze', disabled: b, onchange: function (e) { ed.plaetze = parseInt(e.target.value, 10); renderEditor(e.target.id); } });
+      for (var i = 0; i <= 8; i++) {
+        var o = h('option', { value: String(i), text: i === 0 ? '0 (nimmt niemanden mit)' : String(i) });
+        if (i === ed.plaetze) o.selected = true;
+        sel.appendChild(o);
+      }
+      pnl.appendChild(sel);
+      if (ed.plaetze > 0) {
+        pnl.appendChild(h('label', { 'class': 'field', 'for': 'ed-orte', text: 'Welche Orte werden angefahren?' }));
+        pnl.appendChild(h('input', { type: 'text', id: 'ed-orte', maxlength: '200', value: ed.orte, autocomplete: 'off',
+          placeholder: 'zum Beispiel: Wertingen, Dillingen', disabled: b, oninput: function (e) { ed.orte = e.target.value; } }));
+        pnl.appendChild(h('label', { 'class': 'field', 'for': 'ed-treffpunkt', text: 'Anderer Treffpunkt (freiwillig)' }));
+        pnl.appendChild(h('input', { type: 'text', id: 'ed-treffpunkt', maxlength: '100', value: ed.treffpunkt, autocomplete: 'off',
+          placeholder: 'zum Beispiel: Parkplatz am Sportplatz', disabled: b, oninput: function (e) { ed.treffpunkt = e.target.value; } }));
+      }
+      if (s.mitfahrende.length) {
+        pnl.appendChild(h('div', { 'class': 'fl', style: 'font-weight:700;margin-top:14px', text: 'Mitfahrende' }));
+        s.mitfahrende.forEach(function (name, idx) {
+          var mid = s.mitIds[idx];
+          pnl.appendChild(h('div', { 'class': 'mrow' }, [
+            h('span', { text: name }),
+            mid ? h('button', { type: 'button', 'class': 'secondary small', id: 'ed-entf-' + idx, disabled: b,
+              'aria-label': name + ' entfernen', onclick: function () { mitfahrerEntfernen(mid, name); }, text: 'Entfernen' }) : null
+          ]));
+        });
+      }
+    } else if (ed.choice === 'suche') {
+      pnl.appendChild(h('label', { 'class': 'field', 'for': 'ed-ort',
+        text: ed.r === 'hin' ? 'Wo soll das Kind abgeholt werden?' : 'Wohin soll das Kind gebracht werden?' }));
+      pnl.appendChild(h('select', { id: 'ed-ort', disabled: b, onchange: function (e) { ed.ort = e.target.value; renderEditor(e.target.id); } }, [
+        h('option', { value: 'schule', text: 'Schule', selected: ed.ort === 'schule' }),
+        h('option', { value: 'wohnort', text: 'Wohnort des Kindes', selected: ed.ort === 'wohnort' }),
+        h('option', { value: 'anderer', text: 'Anderer Ort', selected: ed.ort === 'anderer' })
+      ]));
+      if (ed.ort === 'anderer') {
+        pnl.appendChild(h('label', { 'class': 'field', 'for': 'ed-zielort',
+          text: ed.r === 'hin' ? 'Wo genau wird das Kind abgeholt?' : 'Wohin genau wird das Kind gebracht?' }));
+        pnl.appendChild(h('input', { type: 'text', id: 'ed-zielort', maxlength: '100', value: ed.zielort, autocomplete: 'off',
+          placeholder: 'zum Beispiel: Kirche in Rehling', disabled: b, oninput: function (e) { ed.zielort = e.target.value; } }));
+      }
+      pnl.appendChild(h('label', { 'class': 'field', 'for': 'ed-fahrer', text: 'Fährt mit' }));
+      var fsel = h('select', { id: 'ed-fahrer', disabled: b, onchange: function (e) { ed.fahrer = e.target.value; } }, [
+        h('option', { value: '', text: 'Noch kein Fahrer', selected: !ed.fahrer })
+      ]);
+      fahrerListe(z, ed.r).forEach(function (f) {
+        fsel.appendChild(h('option', { value: f.id, selected: ed.fahrer === f.id,
+          text: f.name + (f.frei > 0 ? ' (noch ' + f.frei + ' frei)' : ' (voll)') }));
+      });
+      pnl.appendChild(fsel);
+    } else if (ed.choice === 'anderweitig') {
+      pnl.appendChild(h('p', { 'class': 'sub', style: 'margin-top:8px', text: 'Zum Beispiel, wenn das Kind nicht mitfährt.' }));
+    }
+    if (ed.choice) {
+      var anmHinweis = ed.choice === 'selbst'
+        ? 'Alle Eltern, die das Angebot sehen, lesen diesen Text.'
+        : (ed.choice === 'suche' ? 'Der Fahrer, bei dem das Kind mitfährt, liest diesen Text.' : 'Nur der Elternbeirat liest diesen Text.');
+      pnl.appendChild(h('label', { 'class': 'field', 'for': 'ed-anmerkung', text: 'Anmerkung (freiwillig)' }));
+      var zaehler = h('div', { 'class': 'zaehler', 'aria-hidden': 'true', text: ed.anmerkung.length + ' von 200 Zeichen' });
+      pnl.appendChild(h('textarea', { id: 'ed-anmerkung', maxlength: '200', rows: '3', disabled: b, 'aria-describedby': 'ed-anm-hinweis',
+        text: ed.anmerkung,
+        oninput: function (e) { ed.anmerkung = e.target.value; zaehler.textContent = ed.anmerkung.length + ' von 200 Zeichen'; } }));
+      pnl.appendChild(zaehler);
+      pnl.appendChild(h('p', { 'class': 'hint', id: 'ed-anm-hinweis', text: anmHinweis }));
+    }
+    dlg.appendChild(pnl);
+
+    dlg.appendChild(h('div', { 'class': 'btnrow' }, [
+      h('button', { type: 'button', 'class': 'secondary', id: 'ed-abbrechen', disabled: b, onclick: schliesseEditor, text: 'Abbrechen' }),
+      h('button', { type: 'button', id: 'ed-speichern', disabled: b, onclick: editorSpeichern, text: b ? 'Einen Moment bitte.' : 'Speichern' })
+    ]));
+
+    if (aktiv) {
+      var el = document.getElementById(aktiv);
+      if (el && !el.disabled) el.focus();
+    }
+  }
+
+  // Führt einen Admin-Aufruf aus. Jede Antwort ist die neue Übersicht.
+  async function adminRpc(name, body) {
+    body.p_admin_token = token;
+    var data = await rpc(name, body);
+    rows = baueZeilen(data);
+    stand = new Date();
+    render();
+    return data;
+  }
+
+  function editorFehler(e) {
+    if (e.kind === 'ungueltig') { codeUngueltig(); return; }
+    if (e.kind === 'fehlt') e.message = 'Die Datenbankfunktionen für die Eingabe fehlen noch. Bitte spiele zuerst die Datei fg_anmerkung_zustieg_admin.sql in Supabase ein.';
+    ed.msg = { type: 'err', text: e.message };
+    ed.busy = false;
+    renderEditor('ed-msg');
+  }
+
+  async function editorSpeichern() {
+    if (!ed || ed.busy) return;
+    if (!ed.choice) { ed.msg = { type: 'err', text: 'Bitte wähle eine Möglichkeit aus.' }; renderEditor('ed-msg'); return; }
+    if (ed.choice === 'selbst' && ed.plaetze > 0 && !ed.orte.trim()) {
+      ed.msg = { type: 'err', text: 'Bitte gib an, welche Orte angefahren werden.' };
+      renderEditor('ed-orte');
+      return;
+    }
+    if (ed.choice === 'suche' && ed.ort === 'anderer' && !ed.zielort.trim()) {
+      ed.msg = { type: 'err', text: 'Bitte gib den anderen Ort an.' };
+      renderEditor('ed-zielort');
+      return;
+    }
+    var z = findRow(ed.id), r = ed.r;
+    var kindId = ed.id, name = z.name;
+    ed.busy = true; ed.msg = null; renderEditor('ed-speichern');
+    try {
+      var data = await adminRpc('fg_admin_setze_option', {
+        p_kind_id: kindId, p_richtung: r, p_status: ed.choice,
+        p_ort_typ: ed.choice === 'suche' ? ed.ort : 'schule',
+        p_plaetze_frei: ed.choice === 'selbst' ? ed.plaetze : 0,
+        p_stationen: ed.choice === 'selbst' && ed.plaetze > 0 ? ed.orte.trim() : null,
+        p_ort_text: ed.choice === 'suche' && ed.ort === 'anderer' ? ed.zielort.trim()
+          : (ed.choice === 'selbst' && ed.plaetze > 0 && ed.treffpunkt.trim() ? ed.treffpunkt.trim() : null),
+        p_anmerkung: ed.anmerkung.trim() || null
+      });
+      if (ed.choice === 'suche') {
+        var aktuell = findRow(kindId)[r].faehrtMitId || '';
+        if (ed.fahrer && ed.fahrer !== aktuell) {
+          await adminRpc('fg_admin_buche', { p_kind_id: kindId, p_richtung: r, p_fahrer_kind_id: ed.fahrer });
+        } else if (!ed.fahrer && aktuell) {
+          await adminRpc('fg_admin_storniere', { p_kind_id: kindId, p_richtung: r });
+        }
+      }
+      meldung = { type: 'good', text: (r === 'hin' ? 'Hinfahrt' : 'Rückfahrt') + ' für ' + name + ' ist gespeichert.' };
+      schliesseEditor();
+      render();
+    } catch (e) {
+      editorFehler(e);
+    }
+  }
+
+  async function mitfahrerEntfernen(mitKindId, mitName) {
+    if (!ed || ed.busy) return;
+    var r = ed.r;
+    ed.busy = true; ed.msg = null; renderEditor('ed-titel');
+    try {
+      await adminRpc('fg_admin_storniere', { p_kind_id: mitKindId, p_richtung: r });
+      ed.busy = false;
+      ed.msg = { type: 'good', text: mitName + ' wurde entfernt.' };
+      renderEditor('ed-msg');
+    } catch (e) {
+      editorFehler(e);
     }
   }
 

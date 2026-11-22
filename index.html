@@ -74,13 +74,17 @@
   .choice input { width: 24px; height: 24px; flex: none; accent-color: var(--accent); }
   .panel { margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--soft-line); }
   label.field { display: block; font-weight: 700; margin: 0 0 6px; }
-  select, input[type="text"] {
+  textarea { min-height: 96px; resize: vertical; line-height: 1.4; }
+  .zaehler { color: var(--muted); font-size: .9rem; text-align: right; margin: -10px 0 14px; }
+  .anm { margin: 6px 0 0; padding: 2px 0 2px 10px; border-left: 3px solid var(--line); border-radius: 0; }
+  .status .anm { border-left-color: currentColor; }
+  select, input[type="text"], textarea {
     display: block; width: 100%; min-height: 52px;
     font: inherit; color: var(--text); background: #fff;
     border: 2px solid var(--line); border-radius: 10px; padding: 8px 12px;
     margin: 0 0 14px;
   }
-  select:focus, input[type="text"]:focus { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  select:focus, input[type="text"]:focus, textarea:focus { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
   .hint { color: var(--muted); font-size: .95rem; margin: -8px 0 14px; }
   button {
     font: inherit; font-weight: 700; min-height: 52px; padding: 10px 20px;
@@ -91,7 +95,7 @@
   button.small { min-height: 48px; padding: 8px 16px; }
   button.wide { width: 100%; }
   button:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
-  button:disabled, select:disabled, input:disabled { opacity: .55; cursor: not-allowed; }
+  button:disabled, select:disabled, input:disabled, textarea:disabled { opacity: .55; cursor: not-allowed; }
   .offer { border: 2px solid var(--soft-line); border-radius: 12px; padding: 12px 14px; margin: 0 0 10px; }
   .offer .name { font-weight: 700; }
   .offer .meta { color: var(--muted); margin: 2px 0 10px; }
@@ -200,12 +204,15 @@
     u.choice = s.status || null;
     u.plaetze = typeof s.plaetze_frei === 'number' ? s.plaetze_frei : 0;
     u.stationen = s.status === 'selbst' && s.stationen ? s.stationen : '';
-    u.ort = s.ort_typ === 'wohnort' ? 'wohnort' : 'schule';
+    u.ort = s.status === 'suche' ? (s.ort_typ === 'wohnort' ? 'wohnort' : (s.ort_typ === 'anderer' ? 'anderer' : 'schule')) : 'schule';
+    u.zielort = s.status === 'suche' && s.ort_typ === 'anderer' ? (s.ort_text || '') : '';
+    u.treffpunkt = s.status === 'selbst' ? (s.ort_text || '') : '';
+    u.anmerkung = s.anmerkung || '';
   }
 
   function initUi() {
     RICHTUNGEN.forEach(function (r) {
-      ui[r] = { choice: null, plaetze: 0, stationen: '', ort: 'schule', angebote: null, msg: null };
+      ui[r] = { choice: null, plaetze: 0, stationen: '', ort: 'schule', zielort: '', treffpunkt: '', anmerkung: '', angebote: null, msg: null };
       syncDraft(r);
     });
   }
@@ -249,38 +256,80 @@
     }
   }
 
-  function speichern(r) {
+  var MAX_ANMERKUNG = 200;
+  var MAX_ORT = 100;
+
+  // Prüft die Eingaben für die gewählte Option. Gibt eine Meldung samt Ziel für den Fokus zurück.
+  function pruefeEingaben(r, choice) {
     var u = ui[r];
-    if (!u.choice) return;
-    if (u.choice === 'selbst' && u.plaetze > 0 && !u.stationen.trim()) {
-      u.msg = { type: 'err', text: 'Bitte gib an, welche Orte du anfährst.' };
-      focusId = 'stationen-' + r;
-      render();
-      return;
+    if (choice === 'selbst' && u.plaetze > 0 && !u.stationen.trim()) {
+      return { text: 'Bitte gib an, welche Orte du anfährst.', fokus: 'stationen-' + r };
     }
+    if (choice === 'suche' && u.ort === 'anderer' && !u.zielort.trim()) {
+      return { text: 'Bitte gib den anderen Ort an.', fokus: 'zielort-' + r };
+    }
+    if (u.anmerkung.trim().length > MAX_ANMERKUNG) {
+      return { text: 'Die Anmerkung ist zu lang. Es sind höchstens ' + MAX_ANMERKUNG + ' Zeichen erlaubt.', fokus: 'anmerkung-' + r };
+    }
+    return null;
+  }
+
+  // Baut die Angaben für fg_setze_option. Die neuen Felder werden nur gesendet, wenn sie gebraucht
+  // werden. So bleibt die Seite auch dann lauffähig, wenn die Datenbank noch nicht erweitert ist.
+  function optionBody(r, choice) {
+    var u = ui[r];
+    var s = state.strecken[r];
     var body = {
       p_token: token,
       p_richtung: r,
-      p_status: u.choice,
-      p_ort_typ: u.choice === 'suche' ? u.ort : 'schule',
-      p_plaetze_frei: u.choice === 'selbst' ? u.plaetze : null,
-      p_stationen: u.choice === 'selbst' && u.plaetze > 0 ? u.stationen.trim() : null
+      p_status: choice,
+      p_ort_typ: choice === 'suche' ? u.ort : 'schule',
+      p_plaetze_frei: choice === 'selbst' ? u.plaetze : null,
+      p_stationen: choice === 'selbst' && u.plaetze > 0 ? u.stationen.trim() : null
     };
+    var ortText = '';
+    if (choice === 'suche' && u.ort === 'anderer') ortText = u.zielort.trim();
+    if (choice === 'selbst' && u.plaetze > 0) ortText = u.treffpunkt.trim();
+    var anm = u.anmerkung.trim();
+    if (ortText || anm || s.ort_text || s.anmerkung) {
+      body.p_ort_text = ortText || null;
+      body.p_anmerkung = anm || null;
+    }
+    return body;
+  }
+
+  function speichern(r) {
+    var u = ui[r];
+    if (!u.choice) return;
+    var problem = pruefeEingaben(r, u.choice);
+    if (problem) {
+      u.msg = { type: 'err', text: problem.text };
+      focusId = problem.fokus;
+      render();
+      return;
+    }
+    var body = optionBody(r, u.choice);
     run(r, function () { return rpc('fg_setze_option', body); }, { sync: true, ok: 'Gespeichert.' });
   }
 
   function buchen(r, fahrerId) {
     var s = state.strecken[r];
     var u = ui[r];
+    var problem = pruefeEingaben(r, 'suche');
+    if (problem) {
+      u.msg = { type: 'err', text: problem.text };
+      focusId = problem.fokus;
+      render();
+      return;
+    }
     // Das Gesuch muss gespeichert sein, bevor ein Platz gebucht werden kann.
-    var erstSpeichern = s.status !== 'suche' || (s.ort_typ || 'schule') !== u.ort;
+    var erstSpeichern = s.status !== 'suche'
+      || (s.ort_typ || 'schule') !== u.ort
+      || (u.ort === 'anderer' && (s.ort_text || '') !== u.zielort.trim())
+      || (s.anmerkung || '') !== u.anmerkung.trim();
+    var body = optionBody(r, 'suche');
     run(r, async function () {
-      if (erstSpeichern) {
-        await rpc('fg_setze_option', {
-          p_token: token, p_richtung: r, p_status: 'suche', p_ort_typ: u.ort,
-          p_plaetze_frei: null, p_stationen: null
-        });
-      }
+      if (erstSpeichern) await rpc('fg_setze_option', body);
       return rpc('fg_buche', { p_token: token, p_richtung: r, p_fahrer_kind_id: fahrerId });
     }, { sync: true, ok: 'Dein Kind hat einen Platz.' });
   }
@@ -324,13 +373,20 @@
         ? 'Du fährst selbst. ' + plural(n, 'Platz', 'Plätze') + ' frei.'
         : 'Du fährst selbst. Du nimmst niemanden mit.');
       if (n > 0 && s.stationen) body.push(h('div', { text: 'Orte: ' + s.stationen }));
+      if (n > 0 && s.ort_text) body.push(h('div', { text: 'Anderer Treffpunkt: ' + s.ort_text }));
+      if (s.anmerkung) body.push(h('div', { 'class': 'anm', text: 'Deine Anmerkung: ' + s.anmerkung }));
       var mit = Array.isArray(s.mitfahrende) ? s.mitfahrende : [];
       if (mit.length) {
         var ul = h('ul');
         mit.forEach(function (m, i) {
           var name = typeof m === 'string' ? m : (m.name || '');
           var id = (m && typeof m === 'object') ? (m.kind_id !== undefined ? m.kind_id : m.id) : null;
-          var li = h('li', null, [h('span', { text: name })]);
+          var details = [h('span', { text: name })];
+          if (m && typeof m === 'object') {
+            if (m.ort) details.push(h('div', { text: (r === 'hin' ? 'Steigt zu bei: ' : 'Wird gebracht nach: ') + m.ort }));
+            if (m.anmerkung) details.push(h('div', { 'class': 'anm', text: 'Anmerkung: ' + m.anmerkung }));
+          }
+          var li = h('li', null, [h('div', null, details)]);
           if (id !== null && id !== undefined) {
             li.appendChild(h('button', {
               type: 'button', 'class': 'secondary small', id: 'entf-' + r + '-' + i,
@@ -354,12 +410,16 @@
         if (s.von && s.nach) t += ' Von ' + s.von + ' nach ' + s.nach + '.';
         if (s.faehrt_mit.stationen) t += ' Orte: ' + s.faehrt_mit.stationen + '.';
         body.push(t);
+        if (s.faehrt_mit.ort_text) body.push(h('div', { text: 'Treffpunkt: ' + s.faehrt_mit.ort_text }));
+        if (s.faehrt_mit.anmerkung) body.push(h('div', { 'class': 'anm', text: 'Anmerkung von ' + fname + ': ' + s.faehrt_mit.anmerkung }));
       } else {
         cls += ' open';
         body.push('Noch offen.');
       }
+      if (s.anmerkung) body.push(h('div', { 'class': 'anm', text: 'Deine Anmerkung: ' + s.anmerkung }));
     } else if (s.status === 'anderweitig') {
       body.push('Keine Fahrgemeinschaft nötig.');
+      if (s.anmerkung) body.push(h('div', { 'class': 'anm', text: 'Deine Anmerkung: ' + s.anmerkung }));
     }
 
     return h('div', { 'class': cls, id: 'status-' + r, tabindex: '-1' },
@@ -391,6 +451,13 @@
           disabled: busy,
           oninput: function (e) { u.stationen = e.target.value; }
         }));
+        kids.push(h('label', { 'class': 'field', 'for': 'treffpunkt-' + r, text: 'Anderer Treffpunkt für Mitfahrende (freiwillig)' }));
+        kids.push(h('input', {
+          type: 'text', id: 'treffpunkt-' + r, maxlength: String(MAX_ORT),
+          value: u.treffpunkt, autocomplete: 'off', placeholder: 'zum Beispiel: Parkplatz am Sportplatz',
+          disabled: busy,
+          oninput: function (e) { u.treffpunkt = e.target.value; }
+        }));
       }
     } else if (u.choice === 'suche') {
       var frage = r === 'hin' ? 'Wo soll dein Kind abgeholt werden?' : 'Wohin soll dein Kind gebracht werden?';
@@ -400,11 +467,40 @@
         onchange: function (e) { u.ort = e.target.value; focusId = e.target.id; render(); }
       }, [
         h('option', { value: 'schule', text: 'Schule', selected: u.ort === 'schule' }),
-        h('option', { value: 'wohnort', text: 'Mein Wohnort', selected: u.ort === 'wohnort' })
+        h('option', { value: 'wohnort', text: 'Mein Wohnort', selected: u.ort === 'wohnort' }),
+        h('option', { value: 'anderer', text: 'Anderer Ort', selected: u.ort === 'anderer' })
       ]);
       kids.push(osel);
+      if (u.ort === 'anderer') {
+        kids.push(h('label', { 'class': 'field', 'for': 'zielort-' + r,
+          text: r === 'hin' ? 'Wo genau soll dein Kind abgeholt werden?' : 'Wohin genau soll dein Kind gebracht werden?' }));
+        kids.push(h('input', {
+          type: 'text', id: 'zielort-' + r, maxlength: String(MAX_ORT), required: true,
+          value: u.zielort, autocomplete: 'off', placeholder: 'zum Beispiel: Kirche in Rehling',
+          disabled: busy,
+          oninput: function (e) { u.zielort = e.target.value; }
+        }));
+      }
     } else if (u.choice === 'anderweitig') {
       kids.push(h('p', { 'class': 'hint', style: 'margin-top:0', text: 'Zum Beispiel, wenn dein Kind nicht mitfährt.' }));
+    }
+
+    if (u.choice) {
+      var anmHinweis = u.choice === 'selbst'
+        ? 'Alle Eltern, die dein Angebot sehen, lesen diesen Text. Schreib bitte keine Telefonnummern hinein.'
+        : (u.choice === 'suche'
+          ? 'Der Fahrer, bei dem dein Kind mitfährt, liest diesen Text. Schreib bitte keine Telefonnummern hinein.'
+          : 'Nur der Elternbeirat liest diesen Text.');
+      kids.push(h('label', { 'class': 'field', 'for': 'anmerkung-' + r,
+        text: u.choice === 'anderweitig' ? 'Anmerkung (freiwillig)' : 'Anmerkung für andere Eltern (freiwillig)' }));
+      var zaehler = h('div', { 'class': 'zaehler', id: 'anmerkung-zaehler-' + r, 'aria-hidden': 'true', text: u.anmerkung.length + ' von ' + MAX_ANMERKUNG + ' Zeichen' });
+      kids.push(h('textarea', {
+        id: 'anmerkung-' + r, maxlength: String(MAX_ANMERKUNG), rows: '3', disabled: busy,
+        'aria-describedby': 'anmerkung-hinweis-' + r, text: u.anmerkung,
+        oninput: function (e) { u.anmerkung = e.target.value; zaehler.textContent = u.anmerkung.length + ' von ' + MAX_ANMERKUNG + ' Zeichen'; }
+      }));
+      kids.push(zaehler);
+      kids.push(h('p', { 'class': 'hint', id: 'anmerkung-hinweis-' + r, text: anmHinweis }));
     }
 
     if (u.choice) {
@@ -422,6 +518,8 @@
         kids.push(h('div', { 'class': 'offer' }, [
           h('div', { 'class': 'name', text: s.faehrt_mit.name }),
           h('div', { 'class': 'meta', text: s.faehrt_mit.stationen ? 'Orte: ' + s.faehrt_mit.stationen : '' }),
+          s.faehrt_mit.ort_text ? h('div', { 'class': 'meta', text: 'Treffpunkt: ' + s.faehrt_mit.ort_text }) : null,
+          s.faehrt_mit.anmerkung ? h('div', { 'class': 'anm', text: s.faehrt_mit.anmerkung }) : null,
           h('button', {
             type: 'button', 'class': 'secondary wide', id: 'abgeben-' + r, disabled: busy,
             onclick: function () { abgeben(r); }, text: 'Platz abgeben'
@@ -439,6 +537,8 @@
             kids.push(h('div', { 'class': 'offer' }, [
               h('div', { 'class': 'name', text: a.name }),
               h('div', { 'class': 'meta', text: (a.stationen ? 'Orte: ' + a.stationen + '. ' : '') + plural(a.frei, 'Platz', 'Plätze') + ' frei.' }),
+              a.ort_text ? h('div', { 'class': 'meta', text: 'Treffpunkt: ' + a.ort_text }) : null,
+              a.anmerkung ? h('div', { 'class': 'anm', text: a.anmerkung }) : null,
               h('button', {
                 type: 'button', 'class': 'wide', id: 'buche-' + r + '-' + i, disabled: busy || !(a.frei > 0),
                 'aria-label': 'Platz nehmen bei ' + a.name,
