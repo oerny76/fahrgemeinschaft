@@ -202,7 +202,11 @@
   function leiteAb(s) {
     s = s || {};
     var mitRoh = Array.isArray(s.mitfahrende) ? s.mitfahrende : [];
-    var mit = mitRoh.map(function (m) { return typeof m === 'string' ? m : ((m && m.name) || ''); });
+    var mit = mitRoh.map(function (m) {
+      if (typeof m === 'string') return m;
+      var n = (m && m.name) || '';
+      return (m && m.eltern) ? n + ' (Eltern: ' + m.eltern + ')' : n;
+    });
     var mitIds = mitRoh.map(function (m) { return (m && typeof m === 'object' && m.kind_id) ? m.kind_id : null; });
     var art = 'none';
     if (s.status === 'selbst') art = 'selbst';
@@ -220,7 +224,7 @@
         : '',
       ortText: s.ort_text || '',
       anmerkung: s.anmerkung || '',
-      faehrtMit: s.faehrt_mit || '',
+      faehrtMit: s.faehrt_mit_eltern ? s.faehrt_mit_eltern + ' (Kind: ' + (s.faehrt_mit || '') + ')' : (s.faehrt_mit || ''),
       mitfahrende: mit,
       mitIds: mitIds,
       faehrtMitId: s.faehrt_mit_id || null,
@@ -244,6 +248,7 @@
       var zeiten = [hin.zeit, rueck.zeit].filter(Boolean).sort();
       return {
         id: k.kind_id, name: k.name || '', jahrgang: k.jahrgang, ort: k.ort || '',
+        eltern: k.eltern || '', elternteil1: k.elternteil_1 || '', elternteil2: k.elternteil_2 || '',
         hin: hin, rueck: rueck,
         zuletzt: zeiten.length ? zeiten[zeiten.length - 1] : null,
         angabe: hin.art !== 'none' || rueck.art !== 'none'
@@ -252,7 +257,7 @@
   }
 
   function passt(z) {
-    if (suche && z.name.toLowerCase().indexOf(suche.toLowerCase()) === -1) return false;
+    if (suche && (z.name + ' ' + z.eltern).toLowerCase().indexOf(suche.toLowerCase()) === -1) return false;
     if (filter === 'nichts') return !z.angabe;
     if (filter === 'unvollstaendig') return z.hin.art === 'none' || z.rueck.art === 'none';
     if (filter === 'suche_offen') return z.hin.art === 'suche' || z.rueck.art === 'suche';
@@ -268,7 +273,7 @@
   }
 
   function csvErzeugen(liste) {
-    var kopf = ['Kind', 'Jahrgang', 'Wohnort', 'Etwas angegeben'];
+    var kopf = ['Kind', 'Jahrgang', 'Wohnort', 'Elternteil 1 (Mutter)', 'Elternteil 2 (Vater)', 'Etwas angegeben'];
     ['Hinfahrt', 'Rückfahrt'].forEach(function (p) {
       kopf.push(p + ' Stand', p + ' Plätze angeboten', p + ' Plätze noch frei', p + ' Orte', p + ' Treffpunkt',
         p + ' Abholort bzw. Zielort', p + ' Fährt mit', p + ' Mitfahrende', p + ' Anmerkung');
@@ -276,7 +281,7 @@
     kopf.push('Zuletzt geändert');
     var zeilen = [kopf];
     liste.forEach(function (z) {
-      var r = [z.name, z.jahrgang, z.ort, z.angabe ? 'ja' : 'nein'];
+      var r = [z.name, z.jahrgang, z.ort, z.elternteil1, z.elternteil2, z.angabe ? 'ja' : 'nein'];
       [z.hin, z.rueck].forEach(function (s) {
         r.push(ART_TEXT[s.art], s.art === 'selbst' ? s.angeboten : '', s.art === 'selbst' ? s.frei : '',
           s.orte, s.art === 'selbst' ? s.ortText : '', s.ortTyp, s.faehrtMit, s.mitfahrende.join(', '), s.anmerkung);
@@ -384,7 +389,9 @@
     }
     liste.forEach(function (z) {
       tbody.appendChild(h('tr', null, [
-        h('th', { scope: 'row' }, [z.name, h('span', { 'class': 'meta', text: 'Jahrgang ' + z.jahrgang + (z.ort ? ', ' + z.ort : '') })]),
+        h('th', { scope: 'row' }, [z.name,
+          h('span', { 'class': 'meta', text: 'Jahrgang ' + z.jahrgang + (z.ort ? ', ' + z.ort : '') }),
+          z.eltern ? h('span', { 'class': 'meta', text: 'Eltern: ' + z.eltern }) : null]),
         zelle(z.hin, z, 'hin'), zelle(z.rueck, z, 'rueck'),
         h('td', { text: z.zuletzt ? fmtZeit(z.zuletzt) : 'Noch nie' })
       ]));
@@ -508,7 +515,7 @@
     rows.forEach(function (x) {
       if (x.id === z.id) return;
       var f = x[r];
-      if (f.art === 'selbst' && (f.frei > 0 || x.id === aktuell)) out.push({ id: x.id, name: x.name, frei: f.frei });
+      if (f.art === 'selbst' && (f.frei > 0 || x.id === aktuell)) out.push({ id: x.id, name: x.name, eltern: x.eltern, frei: f.frei });
     });
     return out;
   }
@@ -545,6 +552,7 @@
     dlg.textContent = '';
 
     dlg.appendChild(h('h2', { id: 'ed-titel', text: (ed.r === 'hin' ? 'Hinfahrt' : 'Rückfahrt') + ' für ' + z.name }));
+    if (z.eltern) dlg.appendChild(h('p', { 'class': 'sub', style: 'margin-bottom:2px', text: 'Eltern: ' + z.eltern }));
     dlg.appendChild(h('p', { 'class': 'sub', text: 'Jetzt: ' + ART_TEXT[s.art] + '. Die Familie sieht die Änderung auf ihrer Seite.' }));
     if (ed.msg) dlg.appendChild(h('div', { 'class': 'msg ' + ed.msg.type, id: 'ed-msg', tabindex: '-1', role: ed.msg.type === 'err' ? 'alert' : 'status', text: ed.msg.text }));
 
@@ -606,7 +614,7 @@
       ]);
       fahrerListe(z, ed.r).forEach(function (f) {
         fsel.appendChild(h('option', { value: f.id, selected: ed.fahrer === f.id,
-          text: f.name + (f.frei > 0 ? ' (noch ' + f.frei + ' frei)' : ' (voll)') }));
+          text: (f.eltern ? f.eltern + ' (Kind: ' + f.name + ')' : f.name) + (f.frei > 0 ? ', noch ' + f.frei + ' frei' : ', voll') }));
       });
       pnl.appendChild(fsel);
     } else if (ed.choice === 'anderweitig') {

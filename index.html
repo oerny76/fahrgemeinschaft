@@ -162,6 +162,13 @@
 
   function plural(n, eins, mehr) { return n + ' ' + (n === 1 ? eins : mehr); }
 
+  // Ein Fahrer wird über seine Eltern angezeigt, z. B. "Mia K. oder Paul K.".
+  // Sind keine Eltern bekannt, bleibt der Name des Kindes.
+  function fahrerName(p) { return (p && p.eltern) ? p.eltern : ((p && p.name) || ''); }
+  function fahrerMitKind(p) {
+    return (p && p.eltern) ? p.eltern + ' (Kind: ' + (p.name || '') + ')' : ((p && p.name) || '');
+  }
+
   async function rpc(name, body) {
     var res;
     try {
@@ -381,7 +388,7 @@
         mit.forEach(function (m, i) {
           var name = typeof m === 'string' ? m : (m.name || '');
           var id = (m && typeof m === 'object') ? (m.kind_id !== undefined ? m.kind_id : m.id) : null;
-          var details = [h('span', { text: name })];
+          var details = [h('span', { text: name + ((m && typeof m === 'object' && m.eltern) ? ' (Eltern: ' + m.eltern + ')' : '') })];
           if (m && typeof m === 'object') {
             if (m.ort) details.push(h('div', { text: (r === 'hin' ? 'Steigt zu bei: ' : 'Wird gebracht nach: ') + m.ort }));
             if (m.anmerkung) details.push(h('div', { 'class': 'anm', text: 'Anmerkung: ' + m.anmerkung }));
@@ -405,8 +412,8 @@
     } else if (s.status === 'suche') {
       if (s.faehrt_mit) {
         cls += ' ok';
-        var fname = s.faehrt_mit.name || '';
-        var t = 'Fahrgemeinschaft steht. Fahrt mit ' + fname + (/\.$/.test(fname) ? '' : '.');
+        var fname = fahrerName(s.faehrt_mit);
+        var t = 'Fahrgemeinschaft steht. Dein Kind fährt bei ' + fahrerMitKind(s.faehrt_mit) + ' mit.';
         if (s.von && s.nach) t += ' Von ' + s.von + ' nach ' + s.nach + '.';
         if (s.faehrt_mit.stationen) t += ' Orte: ' + s.faehrt_mit.stationen + '.';
         body.push(t);
@@ -516,7 +523,8 @@
       if (s.status === 'suche' && s.faehrt_mit) {
         kids.push(h('h3', { text: 'Dein Platz' }));
         kids.push(h('div', { 'class': 'offer' }, [
-          h('div', { 'class': 'name', text: s.faehrt_mit.name }),
+          h('div', { 'class': 'name', text: fahrerName(s.faehrt_mit) }),
+          s.faehrt_mit.eltern ? h('div', { 'class': 'meta', text: 'Kind: ' + (s.faehrt_mit.name || '') }) : null,
           h('div', { 'class': 'meta', text: s.faehrt_mit.stationen ? 'Orte: ' + s.faehrt_mit.stationen : '' }),
           s.faehrt_mit.ort_text ? h('div', { 'class': 'meta', text: 'Treffpunkt: ' + s.faehrt_mit.ort_text }) : null,
           s.faehrt_mit.anmerkung ? h('div', { 'class': 'anm', text: s.faehrt_mit.anmerkung }) : null,
@@ -535,13 +543,13 @@
           kids.push(h('p', { 'class': 'hint', style: 'margin-top:0', text: 'Wenn du einen Platz nimmst, speichern wir dein Gesuch automatisch.' }));
           u.angebote.forEach(function (a, i) {
             kids.push(h('div', { 'class': 'offer' }, [
-              h('div', { 'class': 'name', text: a.name }),
+              h('div', { 'class': 'name', text: fahrerName(a) }),
               h('div', { 'class': 'meta', text: (a.stationen ? 'Orte: ' + a.stationen + '. ' : '') + plural(a.frei, 'Platz', 'Plätze') + ' frei.' }),
               a.ort_text ? h('div', { 'class': 'meta', text: 'Treffpunkt: ' + a.ort_text }) : null,
               a.anmerkung ? h('div', { 'class': 'anm', text: a.anmerkung }) : null,
               h('button', {
                 type: 'button', 'class': 'wide', id: 'buche-' + r + '-' + i, disabled: busy || !(a.frei > 0),
-                'aria-label': 'Platz nehmen bei ' + a.name,
+                'aria-label': 'Platz nehmen bei ' + fahrerName(a),
                 onclick: function () { buchen(r, a.kind_id); }, text: 'Platz nehmen'
               })
             ]));

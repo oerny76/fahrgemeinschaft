@@ -74,3 +74,13 @@ und der Admin. Bei "Anders geregelt" sieht sie nur der Admin.
 1. In Supabase (SQL Editor) `sql/fg_anmerkung_zustieg_admin.sql` ausführen. Das ist die einzige neue Datei.
    Voraussetzung: `fg_admin_uebersicht.sql` und `fg_mein_status_mitfahrende_mit_id.sql` sind schon eingespielt.
 2. Danach die Seiten veröffentlichen. Die bisherigen Seiten laufen auch nach Schritt 1 unverändert weiter.
+
+## Eltern statt Kinder in der Auswahl
+
+Die Tabelle `fahrgemeinschaft.kinder` hat die Spalten `elternteil_1` (Mutter), `elternteil_2` (Vater) und
+`eltern_anzeige` (berechnet, z. B. "Mia K. oder Paul K." oder "Eva D."). Die Namen sind
+personenbezogen und stehen nur in der Datenbank, nicht in diesem Repo.
+
+Die Seiten zeigen bei Fahrern die Eltern, mit Rückfall auf den Namen des Kindes, wenn keine Eltern
+gespeichert sind. Dafür einspielen: `sql/fg_eltern_anzeige.sql` (ersetzt drei Funktionen, enthält keine Namen).
+Die Seiten laufen auch ohne diese Datei, zeigen dann aber weiter die Kinder.
