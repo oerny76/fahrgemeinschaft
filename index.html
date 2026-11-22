@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://gkqpgnwmmwvdtpdcqwye.supabase.co; base-uri 'none'; form-action 'none'">
+<title>Fahrgemeinschaft</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --text: #1b2430;
+    --muted: #4a5666;
+    --line: #8a97a8;
+    --soft-line: #d5dce4;
+    --accent: #0b5cad;
+    --accent-text: #ffffff;
+    --ok-bg: #e6f4ea;
+    --ok-text: #14532d;
+    --warn-bg: #fff1c2;
+    --warn-text: #5c3b00;
+    --warn-line: #b57900;
+    --err-bg: #fde8e8;
+    --err-text: #7a1212;
+    --err-line: #b42323;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 18px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 16px 16px 48px; }
+  h1 { font-size: 1.5rem; line-height: 1.25; margin: 8px 0 4px; }
+  h2 { font-size: 1.3rem; line-height: 1.3; margin: 0 0 4px; }
+  h3 { font-size: 1.05rem; margin: 20px 0 8px; }
+  p { margin: 0 0 12px; }
+  .sub { color: var(--muted); margin-bottom: 16px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--soft-line);
+    border-radius: 14px;
+    padding: 18px 16px;
+    margin: 16px 0;
+  }
+  .route { color: var(--muted); margin-bottom: 14px; }
+  .status {
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 0 0 16px;
+    background: #eef2f6;
+    border: 2px solid var(--soft-line);
+  }
+  .status:focus { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .status .label { font-weight: 700; display: block; margin-bottom: 2px; }
+  .status.ok { background: var(--ok-bg); color: var(--ok-text); border-color: #2f7d4f; }
+  .status.open { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-line); font-weight: 700; }
+  .status ul { margin: 8px 0 0; padding: 0; list-style: none; }
+  .status li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid rgba(0,0,0,.15); }
+  fieldset { border: 0; padding: 0; margin: 0 0 8px; min-width: 0; }
+  legend { font-weight: 700; padding: 0; margin-bottom: 8px; }
+  .choice {
+    display: flex; align-items: center; gap: 12px;
+    min-height: 56px; padding: 10px 14px; margin: 0 0 8px;
+    border: 2px solid var(--line); border-radius: 12px; background: #fff;
+    cursor: pointer;
+  }
+  .choice:has(input:checked) { border-color: var(--accent); background: #e8f1fb; }
+  .choice:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .choice input { width: 24px; height: 24px; flex: none; accent-color: var(--accent); }
+  .panel { margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--soft-line); }
+  label.field { display: block; font-weight: 700; margin: 0 0 6px; }
+  select, input[type="text"] {
+    display: block; width: 100%; min-height: 52px;
+    font: inherit; color: var(--text); background: #fff;
+    border: 2px solid var(--line); border-radius: 10px; padding: 8px 12px;
+    margin: 0 0 14px;
+  }
+  select:focus, input[type="text"]:focus { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .hint { color: var(--muted); font-size: .95rem; margin: -8px 0 14px; }
+  button {
+    font: inherit; font-weight: 700; min-height: 52px; padding: 10px 20px;
+    border-radius: 12px; border: 2px solid var(--accent);
+    background: var(--accent); color: var(--accent-text); cursor: pointer;
+  }
+  button.secondary { background: #fff; color: var(--accent); }
+  button.small { min-height: 48px; padding: 8px 16px; }
+  button.wide { width: 100%; }
+  button:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+  button:disabled, select:disabled, input:disabled { opacity: .55; cursor: not-allowed; }
+  .offer { border: 2px solid var(--soft-line); border-radius: 12px; padding: 12px 14px; margin: 0 0 10px; }
+  .offer .name { font-weight: 700; }
+  .offer .meta { color: var(--muted); margin: 2px 0 10px; }
+  .msg { border-radius: 10px; padding: 12px 14px; margin: 0 0 16px; font-weight: 700; }
+  .msg.err { background: var(--err-bg); color: var(--err-text); border: 2px solid var(--err-line); }
+  .msg.good { background: var(--ok-bg); color: var(--ok-text); border: 2px solid #2f7d4f; }
+  .center { text-align: center; padding: 40px 8px; }
+  .foot { color: var(--muted); font-size: .95rem; margin-top: 24px; }
+  .sr { position: absolute; left: -9999px; }
+  @media (prefers-reduced-motion: no-preference) { button { transition: background .15s; } }
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"><p class="center">Einen Moment bitte.</p></main>
+
+<script>
+(function () {
+  'use strict';
+
+  var SUPABASE_URL = 'https://gkqpgnwmmwvdtpdcqwye.supabase.co';
+  var PUBLISHABLE_KEY = 'sb_publishable_1EraAljaYautx0yw-eLrsw_X25gwY2M';
+  var RICHTUNGEN = ['hin', 'rueck'];
+  var TITEL = { hin: 'Hinfahrt', rueck: 'Rückfahrt' };
+  var STRECKE = {
+    hin: 'Vom Abholort zum Bahnhof Meitingen',
+    rueck: 'Vom Bahnhof Meitingen zum Zielort'
+  };
+  var MSG_UNGUELTIG = 'Dieser Link ist nicht gültig. Bitte nutze den Link, den du vom Elternbeirat bekommen hast.';
+  var MSG_ALLGEMEIN = 'Das hat leider nicht geklappt. Bitte versuche es noch einmal.';
+  var MSG_NETZ = 'Die Verbindung hat nicht geklappt. Bitte prüfe dein Internet und versuche es noch einmal.';
+
+  // Token nur aus dem Fragment lesen, danach aus der Adresszeile entfernen.
+  var token = null;
+  try {
+    var params = new URLSearchParams(location.hash.replace(/^#/, ''));
+    var t = params.get('t');
+    if (t && t.trim()) token = t.trim();
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  } catch (e) { /* ohne Token geht es unten weiter */ }
+
+  var app = document.getElementById('app');
+  var state = null;      // { kind, strecken: { hin, rueck } }
+  var ui = {};           // Entwurf und Hinweise pro Richtung
+  var busy = false;
+  var focusId = null;
+
+  // ---------- Hilfsfunktionen ----------
+  function h(tag, attrs, kids) {
+    var el = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      var v = attrs[k];
+      if (v === null || v === undefined || v === false) return;
+      if (k === 'text') el.textContent = v;
+      else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else if (k === 'disabled' || k === 'checked' || k === 'required') { if (v) el[k] = true; }
+      else el.setAttribute(k, v === true ? '' : v);
+    });
+    (kids || []).forEach(function (c) {
+      if (c === null || c === undefined || c === false) return;
+      el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    });
+    return el;
+  }
+
+  function plural(n, eins, mehr) { return n + ' ' + (n === 1 ? eins : mehr); }
+
+  async function rpc(name, body) {
+    var res;
+    try {
+      res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
+        method: 'POST',
+        headers: { 'apikey': PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        referrerPolicy: 'no-referrer',
+        cache: 'no-store'
+      });
+    } catch (e) {
+      throw { kind: 'net', message: MSG_NETZ };
+    }
+    var data = null;
+    try { var txt = await res.text(); data = txt ? JSON.parse(txt) : null; } catch (e) { data = null; }
+    if (!res.ok) {
+      var meldung = MSG_ALLGEMEIN;
+      // Nur bewusst geworfene Meldungen der Funktionen zeigen (Code P0001).
+      if (data && data.code === 'P0001' && data.message) meldung = data.message;
+      throw { kind: 'db', status: res.status, message: meldung };
+    }
+    return data;
+  }
+
+  // ---------- Zustand ----------
+  function setStatus(data) {
+    if (!data || !Array.isArray(data.strecken)) return false;
+    var map = {};
+    data.strecken.forEach(function (s) { if (s && s.richtung) map[s.richtung] = s; });
+    RICHTUNGEN.forEach(function (r) {
+      if (!map[r]) map[r] = { richtung: r, status: null };
+    });
+    state = { kind: data.kind || {}, strecken: map };
+    return true;
+  }
+
+  function syncDraft(r) {
+    var s = state.strecken[r];
+    var u = ui[r];
+    u.choice = s.status || null;
+    u.plaetze = typeof s.plaetze_frei === 'number' ? s.plaetze_frei : 0;
+    u.stationen = s.status === 'selbst' && s.stationen ? s.stationen : '';
+    u.ort = s.ort_typ === 'wohnort' ? 'wohnort' : 'schule';
+  }
+
+  function initUi() {
+    RICHTUNGEN.forEach(function (r) {
+      ui[r] = { choice: null, plaetze: 0, stationen: '', ort: 'schule', angebote: null, msg: null };
+      syncDraft(r);
+    });
+  }
+
+  // ---------- Aktionen ----------
+  async function run(r, fn, opts) {
+    if (busy) return;
+    opts = opts || {};
+    busy = true;
+    ui[r].msg = null;
+    render();
+    try {
+      var data = await fn();
+      if (!setStatus(data)) {
+        // Falls die Funktion keinen Status liefert, laden wir ihn neu.
+        setStatus(await rpc('fg_mein_status', { p_token: token }));
+      }
+      if (opts.sync) syncDraft(r);
+      if (opts.ok) ui[r].msg = { type: 'good', text: opts.ok };
+      focusId = 'status-' + r;
+      await ladeAngebote(r, true);
+    } catch (e) {
+      ui[r].msg = { type: 'err', text: e.message || MSG_ALLGEMEIN };
+      focusId = 'msg-' + r;
+    }
+    busy = false;
+    render();
+  }
+
+  async function ladeAngebote(r, stumm) {
+    var s = state.strecken[r];
+    if (s.status !== 'suche') { ui[r].angebote = null; return; }
+    try {
+      var list = await rpc('fg_angebote', { p_token: token, p_richtung: r });
+      ui[r].angebote = Array.isArray(list) ? list : [];
+    } catch (e) {
+      ui[r].angebote = [];
+      if (!stumm) ui[r].msg = { type: 'err', text: e.message };
+      else ui[r].msg = { type: 'err', text: 'Die Angebote konnten nicht geladen werden. ' + e.message };
+    }
+  }
+
+  function speichern(r) {
+    var u = ui[r];
+    if (!u.choice) return;
+    if (u.choice === 'selbst' && u.plaetze > 0 && !u.stationen.trim()) {
+      u.msg = { type: 'err', text: 'Bitte gib an, welche Orte du anfährst.' };
+      focusId = 'stationen-' + r;
+      render();
+      return;
+    }
+    var body = {
+      p_token: token,
+      p_richtung: r,
+      p_status: u.choice,
+      p_ort_typ: u.choice === 'suche' ? u.ort : 'schule',
+      p_plaetze_frei: u.choice === 'selbst' ? u.plaetze : null,
+      p_stationen: u.choice === 'selbst' && u.plaetze > 0 ? u.stationen.trim() : null
+    };
+    run(r, function () { return rpc('fg_setze_option', body); }, { sync: true, ok: 'Gespeichert.' });
+  }
+
+  function buchen(r, fahrerId) {
+    run(r, function () {
+      return rpc('fg_buche', { p_token: token, p_richtung: r, p_fahrer_kind_id: fahrerId });
+    }, { ok: 'Dein Kind hat einen Platz.' });
+  }
+
+  function abgeben(r) {
+    run(r, function () { return rpc('fg_storniere', { p_token: token, p_richtung: r }); },
+      { ok: 'Der Platz ist wieder frei.' });
+  }
+
+  function entfernen(r, kindId) {
+    run(r, function () {
+      return rpc('fg_mitfahrer_entfernen', { p_token: token, p_richtung: r, p_kind_id: kindId });
+    }, { ok: 'Die Mitfahrt wurde entfernt.' });
+  }
+
+  // ---------- Darstellung ----------
+  function statusBox(r) {
+    var s = state.strecken[r];
+    var cls = 'status';
+    var label = 'Stand';
+    var body = [];
+
+    if (!s.status) {
+      body.push('Noch nichts angegeben.');
+    } else if (s.status === 'selbst') {
+      cls += ' ok';
+      var n = s.plaetze_frei || 0;
+      body.push(n > 0
+        ? 'Du fährst selbst. ' + plural(n, 'Platz', 'Plätze') + ' frei.'
+        : 'Du fährst selbst. Du nimmst niemanden mit.');
+      if (n > 0 && s.stationen) body.push(h('div', { text: 'Orte: ' + s.stationen }));
+      var mit = Array.isArray(s.mitfahrende) ? s.mitfahrende : [];
+      if (mit.length) {
+        var ul = h('ul');
+        mit.forEach(function (m, i) {
+          var name = typeof m === 'string' ? m : (m.name || '');
+          var id = (m && typeof m === 'object') ? (m.kind_id !== undefined ? m.kind_id : m.id) : null;
+          var li = h('li', null, [h('span', { text: name })]);
+          if (id !== null && id !== undefined) {
+            li.appendChild(h('button', {
+              type: 'button', 'class': 'secondary small', id: 'entf-' + r + '-' + i,
+              'aria-label': name + ' entfernen', disabled: busy, text: 'Entfernen',
+              onclick: function () { entfernen(r, id); }
+            }));
+          }
+          ul.appendChild(li);
+        });
+        body.push(h('div', { 'class': 'label', text: 'Das fährt bei dir mit:', style: 'margin-top:10px' }));
+        body.push(ul);
+      }
+    } else if (s.status === 'suche') {
+      if (s.faehrt_mit) {
+        cls += ' ok';
+        var fname = s.faehrt_mit.name || '';
+        var t = 'Fahrgemeinschaft steht. Fahrt mit ' + fname + (/\.$/.test(fname) ? '' : '.');
+        if (s.von && s.nach) t += ' Von ' + s.von + ' nach ' + s.nach + '.';
+        if (s.faehrt_mit.stationen) t += ' Orte: ' + s.faehrt_mit.stationen + '.';
+        body.push(t);
+      } else {
+        cls += ' open';
+        body.push('Noch offen.');
+      }
+    } else if (s.status === 'anderweitig') {
+      body.push('Keine Fahrgemeinschaft nötig.');
+    }
+
+    return h('div', { 'class': cls, id: 'status-' + r, tabindex: '-1' },
+      [h('span', { 'class': 'label', text: 'Stand' })].concat(body));
+  }
+
+  function optionPanel(r) {
+    var u = ui[r];
+    var s = state.strecken[r];
+    var kids = [];
+
+    if (u.choice === 'selbst') {
+      kids.push(h('label', { 'class': 'field', 'for': 'plaetze-' + r, text: 'Wie viele Plätze hast du frei?' }));
+      var sel = h('select', {
+        id: 'plaetze-' + r, disabled: busy,
+        onchange: function (e) { u.plaetze = parseInt(e.target.value, 10); focusId = e.target.id; render(); }
+      });
+      for (var i = 0; i <= 8; i++) {
+        var o = h('option', { value: String(i), text: i === 0 ? '0 (ich nehme niemanden mit)' : String(i) });
+        if (i === u.plaetze) o.selected = true;
+        sel.appendChild(o);
+      }
+      kids.push(sel);
+      if (u.plaetze > 0) {
+        kids.push(h('label', { 'class': 'field', 'for': 'stationen-' + r, text: 'Welche Orte fährst du an?' }));
+        kids.push(h('input', {
+          type: 'text', id: 'stationen-' + r, maxlength: '200', required: true,
+          value: u.stationen, autocomplete: 'off', placeholder: 'zum Beispiel: Wertingen, Dillingen',
+          disabled: busy,
+          oninput: function (e) { u.stationen = e.target.value; }
+        }));
+      }
+    } else if (u.choice === 'suche') {
+      var frage = r === 'hin' ? 'Wo soll dein Kind abgeholt werden?' : 'Wohin soll dein Kind gebracht werden?';
+      kids.push(h('label', { 'class': 'field', 'for': 'ort-' + r, text: frage }));
+      var osel = h('select', {
+        id: 'ort-' + r, disabled: busy,
+        onchange: function (e) { u.ort = e.target.value; focusId = e.target.id; render(); }
+      }, [
+        h('option', { value: 'schule', text: 'Schule', selected: u.ort === 'schule' }),
+        h('option', { value: 'wohnort', text: 'Mein Wohnort', selected: u.ort === 'wohnort' })
+      ]);
+      kids.push(osel);
+    } else if (u.choice === 'anderweitig') {
+      kids.push(h('p', { 'class': 'hint', style: 'margin-top:0', text: 'Zum Beispiel, wenn dein Kind nicht mitfährt.' }));
+    }
+
+    if (u.choice) {
+      kids.push(h('button', {
+        type: 'button', 'class': 'wide', id: 'speichern-' + r, disabled: busy,
+        onclick: function () { speichern(r); },
+        text: busy ? 'Einen Moment bitte.' : 'Speichern'
+      }));
+    }
+
+    // Angebote: nur wenn "suche" gespeichert ist und gerade ausgewählt bleibt.
+    if (u.choice === 'suche' && s.status === 'suche') {
+      if (s.faehrt_mit) {
+        kids.push(h('h3', { text: 'Dein Platz' }));
+        kids.push(h('div', { 'class': 'offer' }, [
+          h('div', { 'class': 'name', text: s.faehrt_mit.name }),
+          h('div', { 'class': 'meta', text: s.faehrt_mit.stationen ? 'Orte: ' + s.faehrt_mit.stationen : '' }),
+          h('button', {
+            type: 'button', 'class': 'secondary wide', id: 'abgeben-' + r, disabled: busy,
+            onclick: function () { abgeben(r); }, text: 'Platz abgeben'
+          })
+        ]));
+      } else {
+        kids.push(h('h3', { text: 'Freie Plätze' }));
+        if (u.angebote === null) {
+          kids.push(h('p', { text: 'Die Angebote werden geladen.' }));
+        } else if (!u.angebote.length) {
+          kids.push(h('p', { text: 'Im Moment ist kein Platz frei. Schau später noch einmal vorbei.' }));
+        } else {
+          u.angebote.forEach(function (a, i) {
+            kids.push(h('div', { 'class': 'offer' }, [
+              h('div', { 'class': 'name', text: a.name }),
+              h('div', { 'class': 'meta', text: (a.stationen ? 'Orte: ' + a.stationen + '. ' : '') + plural(a.frei, 'Platz', 'Plätze') + ' frei.' }),
+              h('button', {
+                type: 'button', 'class': 'wide', id: 'buche-' + r + '-' + i, disabled: busy || !(a.frei > 0),
+                'aria-label': 'Platz nehmen bei ' + a.name,
+                onclick: function () { buchen(r, a.kind_id); }, text: 'Platz nehmen'
+              })
+            ]));
+          });
+        }
+      }
+    }
+
+    return kids.length ? h('div', { 'class': 'panel' }, kids) : null;
+  }
+
+  function card(r) {
+    var u = ui[r];
+    var optionen = [
+      ['selbst', r === 'hin' ? 'Ich bringe mein Kind selbst' : 'Ich hole mein Kind selbst ab'],
+      ['suche', 'Ich suche eine Mitfahrgelegenheit'],
+      ['anderweitig', 'Ist anders geregelt']
+    ];
+    var fs = h('fieldset', null, [h('legend', { text: 'Was passt für dich?' })]);
+    optionen.forEach(function (o) {
+      fs.appendChild(h('label', { 'class': 'choice' }, [
+        h('input', {
+          type: 'radio', name: 'opt-' + r, value: o[0], id: 'opt-' + r + '-' + o[0],
+          checked: u.choice === o[0], disabled: busy,
+          onchange: function (e) {
+            u.choice = e.target.value;
+            u.msg = null;
+            focusId = e.target.id;
+            if (u.choice === 'suche' && state.strecken[r].status === 'suche' && u.angebote === null) {
+              ladeAngebote(r, false).then(render);
+            }
+            render();
+          }
+        }),
+        h('span', { text: o[1] })
+      ]));
+    });
+
+    var kids = [
+      h('h2', { id: 'h-' + r, text: TITEL[r] }),
+      h('p', { 'class': 'route', text: STRECKE[r] })
+    ];
+    if (u.msg) {
+      kids.push(h('div', {
+        'class': 'msg ' + u.msg.type, id: 'msg-' + r, tabindex: '-1',
+        role: u.msg.type === 'err' ? 'alert' : 'status', text: u.msg.text
+      }));
+    }
+    kids.push(statusBox(r));
+    kids.push(fs);
+    var panel = optionPanel(r);
+    if (panel) kids.push(panel);
+    return h('section', { 'class': 'card', 'aria-labelledby': 'h-' + r, 'aria-busy': busy ? 'true' : 'false' }, kids);
+  }
+
+  function render() {
+    var a = document.activeElement;
+    if (!focusId && a && a.id) focusId = a.id;
+    app.textContent = '';
+
+    if (!state) { return; }
+
+    var k = state.kind || {};
+    app.appendChild(h('h1', { text: 'Fahrgemeinschaft für ' + (k.name || 'dein Kind') }));
+    app.appendChild(h('p', { 'class': 'sub', text: 'Alle Fahrten gehen von oder zum Bahnhof Meitingen. Gib für jede Strecke einzeln an, wie dein Kind fährt.' }));
+    RICHTUNGEN.forEach(function (r) { app.appendChild(card(r)); });
+    app.appendChild(h('p', { 'class': 'foot', text: 'Wenn du die Seite neu lädst, öffne bitte noch einmal deinen Link.' }));
+
+    if (focusId) {
+      var el = document.getElementById(focusId);
+      if (el && !el.disabled) { el.focus({ preventScroll: false }); focusId = null; }
+      else if (el && el.disabled) { /* beim nächsten Rendern erneut versuchen */ }
+      else { focusId = null; }
+    }
+  }
+
+  function zeigeFehlerSeite(text, mitNochmal) {
+    app.textContent = '';
+    var box = h('div', { 'class': 'card center' }, [h('p', { role: 'alert', text: text })]);
+    if (mitNochmal) {
+      box.appendChild(h('button', { type: 'button', onclick: start, text: 'Noch einmal versuchen' }));
+    }
+    app.appendChild(h('h1', { text: 'Fahrgemeinschaft' }));
+    app.appendChild(box);
+  }
+
+  async function start() {
+    if (!token) { zeigeFehlerSeite(MSG_UNGUELTIG, false); return; }
+    app.textContent = '';
+    app.appendChild(h('p', { 'class': 'center', text: 'Einen Moment bitte.' }));
+    try {
+      var data = await rpc('fg_mein_status', { p_token: token });
+      if (!setStatus(data)) { zeigeFehlerSeite(MSG_UNGUELTIG, false); return; }
+      initUi();
+      for (var i = 0; i < RICHTUNGEN.length; i++) await ladeAngebote(RICHTUNGEN[i], true);
+      render();
+    } catch (e) {
+      if (e.kind === 'net') zeigeFehlerSeite(e.message, true);
+      else zeigeFehlerSeite(MSG_UNGUELTIG, false);
+    }
+  }
+
+  start();
+})();
+</script>
+</body>
+</html>
