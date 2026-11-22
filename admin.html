@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://gkqpgnwmmwvdtpdcqwye.supabase.co; base-uri 'none'; form-action 'none'">
+<title>Fahrgemeinschaft Übersicht</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #ffffff; --text: #1b2430; --muted: #4a5666;
+    --line: #8a97a8; --soft-line: #d5dce4; --accent: #0b5cad; --accent-text: #ffffff;
+    --ok-bg: #e6f4ea; --ok-text: #14532d; --ok-line: #2f7d4f;
+    --warn-bg: #fff1c2; --warn-text: #5c3b00; --warn-line: #b57900;
+    --none-bg: #eef2f6; --none-text: #33404f;
+    --err-bg: #fde8e8; --err-text: #7a1212; --err-line: #b42323;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px 16px 48px; }
+  h1 { font-size: 1.5rem; margin: 8px 0 4px; line-height: 1.25; }
+  h2 { font-size: 1.15rem; margin: 24px 0 8px; }
+  p { margin: 0 0 12px; }
+  .sub { color: var(--muted); }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 16px 0; }
+  .bar label { display: block; font-weight: 700; margin-bottom: 4px; }
+  select, input[type="search"] { min-height: 48px; font: inherit; color: var(--text); background: #fff;
+    border: 2px solid var(--line); border-radius: 10px; padding: 6px 12px; min-width: 220px; }
+  select:focus, input:focus { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  button { font: inherit; font-weight: 700; min-height: 48px; padding: 8px 18px; border-radius: 10px;
+    border: 2px solid var(--accent); background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button.secondary { background: #fff; color: var(--accent); }
+  button:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .spacer { flex: 1; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .tile { background: var(--card); border: 1px solid var(--soft-line); border-radius: 12px; padding: 12px 14px; }
+  .tile .num { font-size: 1.8rem; font-weight: 800; line-height: 1.1; }
+  .tile .lbl { color: var(--muted); }
+  .tile.warn { background: var(--warn-bg); border: 2px solid var(--warn-line); color: var(--warn-text); }
+  .tile.warn .lbl { color: var(--warn-text); }
+  .scroll { overflow-x: auto; background: var(--card); border: 1px solid var(--soft-line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; }
+  caption { text-align: left; padding: 10px 12px; font-weight: 700; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-top: 1px solid var(--soft-line); }
+  thead th { background: #e9eef3; position: sticky; top: 0; }
+  tbody th { font-weight: 700; }
+  .meta { color: var(--muted); font-weight: 400; display: block; }
+  .badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-weight: 700; border: 2px solid transparent; margin-bottom: 4px; }
+  .b-none { background: var(--none-bg); color: var(--none-text); border-color: var(--line); }
+  .b-selbst { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-line); }
+  .b-gefunden { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-line); }
+  .b-suche { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-line); }
+  .b-anders { background: #e8f1fb; color: #0a3d75; border-color: var(--accent); }
+  .detail { display: block; }
+  .msg { border-radius: 10px; padding: 12px 14px; margin: 12px 0; font-weight: 700; }
+  .msg.err { background: var(--err-bg); color: var(--err-text); border: 2px solid var(--err-line); }
+  .msg.good { background: var(--ok-bg); color: var(--ok-text); border: 2px solid var(--ok-line); }
+  .center { text-align: center; padding: 40px 8px; }
+  .empty { padding: 24px 12px; }
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"><p class="center">Einen Moment bitte.</p></main>
+
+<script>
+(function () {
+  'use strict';
+
+  var SUPABASE_URL = 'https://gkqpgnwmmwvdtpdcqwye.supabase.co';
+  var PUBLISHABLE_KEY = 'sb_publishable_1EraAljaYautx0yw-eLrsw_X25gwY2M';
+  var MSG_UNGUELTIG = 'Dieser Link ist nicht gültig. Bitte nutze den Admin-Link, den du bekommen hast.';
+  var MSG_NETZ = 'Die Verbindung hat nicht geklappt. Bitte prüfe dein Internet und versuche es noch einmal.';
+  var MSG_FEHLT = 'Die Datenbankfunktion für die Übersicht fehlt noch. Bitte spiele zuerst die Datei fg_admin_uebersicht.sql in Supabase ein.';
+
+  var token = null;
+  try {
+    var params = new URLSearchParams(location.hash.replace(/^#/, ''));
+    var t = params.get('a');
+    if (t && t.trim()) token = t.trim();
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  } catch (e) { /* ohne Code geht es unten weiter */ }
+
+  var app = document.getElementById('app');
+  var rows = null;       // abgeleitete Zeilen
+  var stand = null;      // Zeitpunkt des letzten Ladens
+  var filter = 'alle';
+  var suche = '';
+  var busy = false;
+  var meldung = null;
+
+  // ---------- Hilfsfunktionen ----------
+  function h(tag, attrs, kids) {
+    var el = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      var v = attrs[k];
+      if (v === null || v === undefined || v === false) return;
+      if (k === 'text') el.textContent = v;
+      else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else if (k === 'disabled' || k === 'selected') { if (v) el[k] = true; }
+      else el.setAttribute(k, v === true ? '' : v);
+    });
+    (kids || []).forEach(function (c) {
+      if (c === null || c === undefined || c === false) return;
+      el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    });
+    return el;
+  }
+
+  async function rpc(name, body) {
+    var res;
+    try {
+      res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
+        method: 'POST',
+        headers: { 'apikey': PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body), referrerPolicy: 'no-referrer', cache: 'no-store'
+      });
+    } catch (e) { throw { kind: 'net', message: MSG_NETZ }; }
+    var data = null;
+    try { var txt = await res.text(); data = txt ? JSON.parse(txt) : null; } catch (e) { data = null; }
+    if (!res.ok) {
+      if (data && data.code === 'P0001') throw { kind: 'ungueltig', message: MSG_UNGUELTIG };
+      if (data && data.code === 'PGRST202') throw { kind: 'fehlt', message: MSG_FEHLT };
+      throw { kind: 'db', message: 'Das hat leider nicht geklappt. Bitte versuche es noch einmal.' };
+    }
+    return data;
+  }
+
+  function fmtZeit(iso) {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return iso; }
+  }
+
+  // ---------- Daten ableiten ----------
+  function leiteAb(s) {
+    s = s || {};
+    var mit = Array.isArray(s.mitfahrende) ? s.mitfahrende : [];
+    var art = 'none';
+    if (s.status === 'selbst') art = 'selbst';
+    else if (s.status === 'suche') art = s.faehrt_mit ? 'gefunden' : 'suche';
+    else if (s.status === 'anderweitig') art = 'anders';
+    var angeboten = s.status === 'selbst' ? (s.plaetze_frei || 0) : 0;
+    return {
+      art: art,
+      angeboten: angeboten,
+      belegt: mit.length,
+      frei: Math.max(0, angeboten - mit.length),
+      orte: s.stationen || '',
+      ortTyp: s.status === 'suche' ? (s.ort_typ === 'wohnort' ? 'Wohnort' : 'Schule') : '',
+      faehrtMit: s.faehrt_mit || '',
+      mitfahrende: mit,
+      zeit: s.aktualisiert_am || null
+    };
+  }
+
+  var ART_TEXT = {
+    none: 'Noch nichts angegeben',
+    selbst: 'Fährt selbst',
+    gefunden: 'Platz gefunden',
+    suche: 'Sucht noch einen Platz',
+    anders: 'Anders geregelt'
+  };
+
+  function baueZeilen(data) {
+    return (Array.isArray(data) ? data : []).map(function (k) {
+      var st = k.strecken || {};
+      var hin = leiteAb(st.hin), rueck = leiteAb(st.rueck);
+      var zeiten = [hin.zeit, rueck.zeit].filter(Boolean).sort();
+      return {
+        id: k.kind_id, name: k.name || '', jahrgang: k.jahrgang, ort: k.ort || '',
+        hin: hin, rueck: rueck,
+        zuletzt: zeiten.length ? zeiten[zeiten.length - 1] : null,
+        angabe: hin.art !== 'none' || rueck.art !== 'none'
+      };
+    });
+  }
+
+  function passt(z) {
+    if (suche && z.name.toLowerCase().indexOf(suche.toLowerCase()) === -1) return false;
+    if (filter === 'nichts') return !z.angabe;
+    if (filter === 'unvollstaendig') return z.hin.art === 'none' || z.rueck.art === 'none';
+    if (filter === 'suche_offen') return z.hin.art === 'suche' || z.rueck.art === 'suche';
+    if (filter === 'plaetze_frei') return z.hin.frei > 0 || z.rueck.frei > 0;
+    return true;
+  }
+
+  // ---------- CSV ----------
+  function csvFeld(v) {
+    var s = v === null || v === undefined ? '' : String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;   // Schutz vor Formeln in Excel
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+
+  function csvErzeugen(liste) {
+    var kopf = ['Kind', 'Jahrgang', 'Wohnort', 'Etwas angegeben'];
+    ['Hinfahrt', 'Rückfahrt'].forEach(function (p) {
+      kopf.push(p + ' Stand', p + ' Plätze angeboten', p + ' Plätze noch frei', p + ' Orte',
+        p + ' Abholort bzw. Zielort', p + ' Fährt mit', p + ' Mitfahrende');
+    });
+    kopf.push('Zuletzt geändert');
+    var zeilen = [kopf];
+    liste.forEach(function (z) {
+      var r = [z.name, z.jahrgang, z.ort, z.angabe ? 'ja' : 'nein'];
+      [z.hin, z.rueck].forEach(function (s) {
+        r.push(ART_TEXT[s.art], s.art === 'selbst' ? s.angeboten : '', s.art === 'selbst' ? s.frei : '',
+          s.orte, s.ortTyp, s.faehrtMit, s.mitfahrende.join(', '));
+      });
+      r.push(fmtZeit(z.zuletzt));
+      zeilen.push(r);
+    });
+    return '﻿' + zeilen.map(function (r) { return r.map(csvFeld).join(';'); }).join('\r\n') + '\r\n';
+  }
+
+  function exportieren() {
+    var liste = rows.filter(passt);
+    var blob = new Blob([csvErzeugen(liste)], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var d = new Date();
+    var p2 = function (n) { return String(n).padStart(2, '0'); };
+    var a = h('a', { href: url, download: 'fahrgemeinschaft-stand-' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + '.csv' });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    meldung = { type: 'good', text: 'Die CSV mit ' + liste.length + ' Kindern wurde erstellt.' };
+    render();
+  }
+
+  // ---------- Darstellung ----------
+  function zelle(s) {
+    var kids = [h('span', { 'class': 'badge b-' + s.art, text: ART_TEXT[s.art] })];
+    if (s.art === 'selbst') {
+      kids.push(h('span', { 'class': 'detail', text: s.angeboten > 0
+        ? s.angeboten + ' Plätze angeboten, noch ' + s.frei + ' frei' : 'Nimmt niemanden mit' }));
+      if (s.orte) kids.push(h('span', { 'class': 'detail', text: 'Orte: ' + s.orte }));
+      if (s.mitfahrende.length) kids.push(h('span', { 'class': 'detail', text: 'Mit dabei: ' + s.mitfahrende.join(', ') }));
+    } else if (s.art === 'gefunden' || s.art === 'suche') {
+      kids.push(h('span', { 'class': 'detail', text: (s.ortTyp ? 'Ort: ' + s.ortTyp : '') }));
+      if (s.faehrtMit) kids.push(h('span', { 'class': 'detail', text: 'Fährt mit ' + s.faehrtMit }));
+    }
+    return h('td', null, kids);
+  }
+
+  function kachel(zahl, text, warn) {
+    return h('div', { 'class': 'tile' + (warn ? ' warn' : '') }, [
+      h('div', { 'class': 'num', text: String(zahl) }), h('div', { 'class': 'lbl', text: text })
+    ]);
+  }
+
+  function zaehle(fn) { return rows.filter(fn).length; }
+  function summe(fn) { return rows.reduce(function (a, z) { return a + fn(z); }, 0); }
+
+  function render() {
+    var fokus = document.activeElement && document.activeElement.id;
+    app.textContent = '';
+    if (!rows) return;
+
+    var offenHin = zaehle(function (z) { return z.hin.art === 'suche'; });
+    var offenRueck = zaehle(function (z) { return z.rueck.art === 'suche'; });
+
+    app.appendChild(h('h1', { text: 'Fahrgemeinschaft Übersicht' }));
+    app.appendChild(h('p', { 'class': 'sub', text: 'Theaterausflug am 3. Dezember 2026. Stand: ' + fmtZeit(stand.toISOString()) + ' Uhr.' }));
+
+    if (meldung) app.appendChild(h('div', { 'class': 'msg ' + meldung.type, role: meldung.type === 'err' ? 'alert' : 'status', text: meldung.text }));
+
+    app.appendChild(h('div', { 'class': 'tiles' }, [
+      kachel(rows.length, 'Kinder insgesamt'),
+      kachel(zaehle(function (z) { return z.hin.art !== 'none' && z.rueck.art !== 'none'; }), 'Beide Strecken angegeben'),
+      kachel(zaehle(function (z) { return z.angabe && (z.hin.art === 'none' || z.rueck.art === 'none'); }), 'Nur eine Strecke angegeben'),
+      kachel(zaehle(function (z) { return !z.angabe; }), 'Noch nichts angegeben', zaehle(function (z) { return !z.angabe; }) > 0),
+      kachel(offenHin, 'Hinfahrt: suchen noch einen Platz', offenHin > 0),
+      kachel(offenRueck, 'Rückfahrt: suchen noch einen Platz', offenRueck > 0),
+      kachel(summe(function (z) { return z.hin.frei; }), 'Hinfahrt: freie Plätze'),
+      kachel(summe(function (z) { return z.rueck.frei; }), 'Rückfahrt: freie Plätze')
+    ]));
+
+    var sel = h('select', { id: 'filter', onchange: function (e) { filter = e.target.value; render(); } });
+    [['alle', 'Alle Kinder'], ['nichts', 'Noch nichts angegeben'], ['unvollstaendig', 'Mindestens eine Strecke fehlt'],
+     ['suche_offen', 'Suchen noch einen Platz'], ['plaetze_frei', 'Haben noch freie Plätze']].forEach(function (o) {
+      sel.appendChild(h('option', { value: o[0], text: o[1], selected: filter === o[0] }));
+    });
+    var liste = rows.filter(passt);
+
+    app.appendChild(h('div', { 'class': 'bar' }, [
+      h('div', null, [h('label', { 'for': 'filter', text: 'Anzeigen' }), sel]),
+      h('div', null, [h('label', { 'for': 'suche', text: 'Name suchen' }),
+        h('input', { type: 'search', id: 'suche', value: suche, autocomplete: 'off',
+          oninput: function (e) { suche = e.target.value; render(); } })]),
+      h('span', { 'class': 'spacer' }),
+      h('button', { type: 'button', 'class': 'secondary', id: 'aktualisieren', disabled: busy,
+        onclick: laden, text: busy ? 'Einen Moment bitte.' : 'Aktualisieren' }),
+      h('button', { type: 'button', id: 'export', disabled: busy || !liste.length,
+        onclick: exportieren, text: 'CSV exportieren (' + liste.length + ')' })
+    ]));
+
+    var tbody = h('tbody');
+    if (!liste.length) {
+      tbody.appendChild(h('tr', null, [h('td', { colspan: '4', 'class': 'empty', text: 'Keine Kinder gefunden.' })]));
+    }
+    liste.forEach(function (z) {
+      tbody.appendChild(h('tr', null, [
+        h('th', { scope: 'row' }, [z.name, h('span', { 'class': 'meta', text: 'Jahrgang ' + z.jahrgang + (z.ort ? ', ' + z.ort : '') })]),
+        zelle(z.hin), zelle(z.rueck),
+        h('td', { text: z.zuletzt ? fmtZeit(z.zuletzt) : 'Noch nie' })
+      ]));
+    });
+
+    app.appendChild(h('div', { 'class': 'scroll' }, [
+      h('table', null, [
+        h('caption', { text: liste.length + ' von ' + rows.length + ' Kindern' }),
+        h('thead', null, [h('tr', null, [
+          h('th', { scope: 'col', text: 'Kind' }), h('th', { scope: 'col', text: 'Hinfahrt' }),
+          h('th', { scope: 'col', text: 'Rückfahrt' }), h('th', { scope: 'col', text: 'Zuletzt geändert' })
+        ])]),
+        tbody
+      ])
+    ]));
+
+    if (fokus) {
+      var el = document.getElementById(fokus);
+      if (el) {
+        el.focus();
+        if (fokus === 'suche' && el.setSelectionRange) { var n = el.value.length; el.setSelectionRange(n, n); }
+      }
+    }
+  }
+
+  function zeigeFehlerSeite(text, nochmal) {
+    app.textContent = '';
+    app.appendChild(h('h1', { text: 'Fahrgemeinschaft Übersicht' }));
+    var box = h('div', { 'class': 'center' }, [h('p', { role: 'alert', text: text })]);
+    if (nochmal) box.appendChild(h('button', { type: 'button', onclick: laden, text: 'Noch einmal versuchen' }));
+    app.appendChild(box);
+  }
+
+  async function laden() {
+    if (busy) return;
+    if (!token) { zeigeFehlerSeite(MSG_UNGUELTIG, false); return; }
+    busy = true; meldung = null;
+    if (rows) render();
+    try {
+      var data = await rpc('fg_admin_uebersicht', { p_admin_token: token });
+      rows = baueZeilen(data);
+      stand = new Date();
+      busy = false;
+      render();
+    } catch (e) {
+      busy = false;
+      if (rows) { meldung = { type: 'err', text: e.message }; render(); }
+      else zeigeFehlerSeite(e.message, e.kind === 'net' || e.kind === 'db');
+    }
+  }
+
+  laden();
+})();
+</script>
+</body>
+</html>

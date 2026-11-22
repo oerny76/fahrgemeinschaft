@@ -29,3 +29,16 @@ Wichtig:
 
 - Im Code steht nur der Publishable Key. Der darf öffentlich sein.
 - Niemals den service_role Key oder den secret Key in dieses Repo legen.
+
+## Admin-Übersicht
+
+Die Seite `admin.html` zeigt den Gesamtstand und exportiert ihn als CSV.
+
+1. Einmal in Supabase (SQL Editor) die Datei `sql/fg_admin_uebersicht.sql` ausführen.
+2. Admin-Code erzeugen und kopieren:
+
+       insert into fahrgemeinschaft.admin_zugang (notiz) values ('Elternbeirat') returning token;
+
+3. Link öffnen: `https://oerny76.github.io/fahrgemeinschaft/admin.html#a=<TOKEN>`
+4. Link nicht weitergeben. Er zeigt die Angaben aller Kinder.
+5. Code ungültig machen: `delete from fahrgemeinschaft.admin_zugang where token = '<TOKEN>';`
