@@ -237,7 +237,8 @@
 
   async function ladeAngebote(r, stumm) {
     var s = state.strecken[r];
-    if (s.status !== 'suche') { ui[r].angebote = null; return; }
+    if (s.status !== 'suche' && ui[r].choice !== 'suche') { ui[r].angebote = null; return; }
+    if (!stumm) ui[r].msg = null;
     try {
       var list = await rpc('fg_angebote', { p_token: token, p_richtung: r });
       ui[r].angebote = Array.isArray(list) ? list : [];
@@ -269,9 +270,31 @@
   }
 
   function buchen(r, fahrerId) {
-    run(r, function () {
+    var s = state.strecken[r];
+    var u = ui[r];
+    // Das Gesuch muss gespeichert sein, bevor ein Platz gebucht werden kann.
+    var erstSpeichern = s.status !== 'suche' || (s.ort_typ || 'schule') !== u.ort;
+    run(r, async function () {
+      if (erstSpeichern) {
+        await rpc('fg_setze_option', {
+          p_token: token, p_richtung: r, p_status: 'suche', p_ort_typ: u.ort,
+          p_plaetze_frei: null, p_stationen: null
+        });
+      }
       return rpc('fg_buche', { p_token: token, p_richtung: r, p_fahrer_kind_id: fahrerId });
-    }, { ok: 'Dein Kind hat einen Platz.' });
+    }, { sync: true, ok: 'Dein Kind hat einen Platz.' });
+  }
+
+  async function aktualisieren(r) {
+    if (busy) return;
+    busy = true;
+    ui[r].msg = null;
+    render();
+    await ladeAngebote(r, false);
+    if (!ui[r].msg) ui[r].msg = { type: 'good', text: 'Die Liste ist aktuell.' };
+    busy = false;
+    focusId = 'aktualisieren-' + r;
+    render();
   }
 
   function abgeben(r) {
@@ -319,6 +342,9 @@
         });
         body.push(h('div', { 'class': 'label', text: 'Das fährt bei dir mit:', style: 'margin-top:10px' }));
         body.push(ul);
+        if (mit.some(function (m) { return typeof m === 'string'; })) {
+          body.push(h('div', { style: 'margin-top:8px', text: 'Zum Entfernen melde dich bitte beim Elternbeirat.' }));
+        }
       }
     } else if (s.status === 'suche') {
       if (s.faehrt_mit) {
@@ -389,9 +415,9 @@
       }));
     }
 
-    // Angebote: nur wenn "suche" gespeichert ist und gerade ausgewählt bleibt.
-    if (u.choice === 'suche' && s.status === 'suche') {
-      if (s.faehrt_mit) {
+    // Angebote: sobald "suche" ausgewählt ist, auch ohne vorher zu speichern.
+    if (u.choice === 'suche') {
+      if (s.status === 'suche' && s.faehrt_mit) {
         kids.push(h('h3', { text: 'Dein Platz' }));
         kids.push(h('div', { 'class': 'offer' }, [
           h('div', { 'class': 'name', text: s.faehrt_mit.name }),
@@ -408,6 +434,7 @@
         } else if (!u.angebote.length) {
           kids.push(h('p', { text: 'Im Moment ist kein Platz frei. Schau später noch einmal vorbei.' }));
         } else {
+          kids.push(h('p', { 'class': 'hint', style: 'margin-top:0', text: 'Wenn du einen Platz nimmst, speichern wir dein Gesuch automatisch.' }));
           u.angebote.forEach(function (a, i) {
             kids.push(h('div', { 'class': 'offer' }, [
               h('div', { 'class': 'name', text: a.name }),
@@ -420,6 +447,10 @@
             ]));
           });
         }
+        kids.push(h('button', {
+          type: 'button', 'class': 'secondary wide', id: 'aktualisieren-' + r, disabled: busy,
+          onclick: function () { aktualisieren(r); }, text: 'Liste aktualisieren'
+        }));
       }
     }
 
@@ -443,7 +474,8 @@
             u.choice = e.target.value;
             u.msg = null;
             focusId = e.target.id;
-            if (u.choice === 'suche' && state.strecken[r].status === 'suche' && u.angebote === null) {
+            if (u.choice === 'suche' && !state.strecken[r].faehrt_mit) {
+              u.angebote = null;
               ladeAngebote(r, false).then(render);
             }
             render();
