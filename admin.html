@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://gkqpgnwmmwvdtpdcqwye.supabase.co; img-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://gkqpgnwmmwvdtpdcqwye.supabase.co; img-src 'self'; manifest-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="theme-color" content="#0b5cad">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -54,6 +54,20 @@
   thead th { background: #e9eef3; position: sticky; top: 0; }
   tbody th { font-weight: 700; }
   .meta { color: var(--muted); font-weight: 400; display: block; }
+  .linkbtn { background: none; border: 0; padding: 6px 0; min-height: 44px; font: inherit; font-weight: 700;
+    color: var(--accent); text-decoration: underline; cursor: pointer; text-align: left; border-radius: 4px; }
+  .linkbtn:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+  dialog#vorschau { position: fixed; top: 0; right: 0; bottom: 0; left: auto; margin: 0; width: min(440px, 100vw);
+    max-width: 100vw; height: 100vh; height: 100dvh; max-height: 100dvh; border-radius: 0; border-width: 0 0 0 1px;
+    padding: 0; flex-direction: column; }
+  dialog#vorschau:not([open]) { display: none; }
+  dialog#vorschau[open] { display: flex; }
+  .vs-kopf { padding: 12px 14px; border-bottom: 1px solid var(--soft-line); }
+  .vs-kopf h2 { margin: 0 0 2px; font-size: 1.1rem; }
+  .vs-kopf p { margin: 0 0 6px; }
+  .vs-tasten { display: flex; gap: 8px; }
+  #vs-frame { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
+  @media (min-width: 900px) { body.vorschau-offen main { margin: 0 456px 0 0; max-width: none; } }
   .badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-weight: 700; border: 2px solid transparent; margin-bottom: 4px; }
   .b-none { background: var(--none-bg); color: var(--none-text); border-color: var(--line); }
   .b-selbst { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-line); }
@@ -104,6 +118,7 @@
 <body>
 <main id="app" aria-live="polite"><p class="center">Einen Moment bitte.</p></main>
 <dialog id="editor" aria-labelledby="ed-titel"></dialog>
+<dialog id="vorschau" aria-labelledby="vs-titel"></dialog>
 
 <script>
 (function () {
@@ -389,7 +404,9 @@
     }
     liste.forEach(function (z) {
       tbody.appendChild(h('tr', null, [
-        h('th', { scope: 'row' }, [z.name,
+        h('th', { scope: 'row' }, [
+          h('button', { type: 'button', 'class': 'linkbtn', id: 'vs-oeffnen-' + z.id,
+            'aria-label': 'Vorschau für ' + z.name + ' öffnen', onclick: function () { oeffneVorschau(z.id); }, text: z.name }),
           h('span', { 'class': 'meta', text: 'Jahrgang ' + z.jahrgang + (z.ort ? ', ' + z.ort : '') }),
           z.eltern ? h('span', { 'class': 'meta', text: 'Eltern: ' + z.eltern }) : null]),
         zelle(z.hin, z, 'hin'), zelle(z.rueck, z, 'rueck'),
@@ -458,6 +475,7 @@
   }
 
   function abmelden() {
+    schliesseVorschau();
     vergiss();
     token = null; quelle = null; rows = null; meldung = null; suche = ''; filter = 'alle';
     zeigeLogin();
@@ -486,6 +504,7 @@
   function codeUngueltig() {
     var war = quelle;
     schliesseEditor();
+    schliesseVorschau();
     token = null; quelle = null; rows = null;
     if (war === 'gespeichert') {
       vergiss();
@@ -699,6 +718,7 @@
       }
       meldung = { type: 'good', text: (r === 'hin' ? 'Hinfahrt' : 'Rückfahrt') + ' für ' + name + ' ist gespeichert.' };
       schliesseEditor();
+      vorschauLaden();
       render();
     } catch (e) {
       editorFehler(e);
@@ -714,10 +734,88 @@
       ed.busy = false;
       ed.msg = { type: 'good', text: mitName + ' wurde entfernt.' };
       renderEditor('ed-msg');
+      vorschauLaden();
     } catch (e) {
       editorFehler(e);
     }
   }
+
+  // ---------- Vorschau: Was sieht die Familie? ----------
+  // Die echte Eltern-Seite läuft in einem Rahmen im Vorschau-Modus. Sie bekommt nur die Daten per
+  // Nachricht (nur vom übergeordneten Fenster angenommen) und kennt keinen Zugangscode.
+  var vdlg = document.getElementById('vorschau');
+  var breit = window.matchMedia('(min-width: 900px)');
+  var vs = { id: null, bereit: false, daten: null, nr: 0, frame: null, titel: null, eltern: null, msg: null };
+
+  function baueVorschau() {
+    if (vs.frame) return;
+    vs.titel = h('h2', { id: 'vs-titel', tabindex: '-1' });
+    vs.eltern = h('p', { 'class': 'sub' });
+    vs.msg = h('div', { 'aria-live': 'polite' });
+    vs.frame = h('iframe', { id: 'vs-frame', title: 'Vorschau der Seite der Familie',
+      referrerpolicy: 'no-referrer', src: 'index.html#vorschau' });
+    vdlg.appendChild(h('div', { 'class': 'vs-kopf' }, [
+      vs.titel,
+      vs.eltern,
+      h('div', { 'class': 'vs-tasten' }, [
+        h('button', { type: 'button', 'class': 'secondary small', id: 'vs-neu', onclick: function () { vorschauLaden(); }, text: 'Neu laden' }),
+        h('button', { type: 'button', 'class': 'secondary small', id: 'vs-zu', onclick: schliesseVorschau, text: 'Schließen' })
+      ]),
+      vs.msg
+    ]));
+    vdlg.appendChild(vs.frame);
+  }
+
+  function sendeVorschau() {
+    if (vs.bereit && vs.daten && vs.frame && vs.frame.contentWindow) {
+      vs.frame.contentWindow.postMessage({ type: 'fg-vorschau', daten: vs.daten }, '*');
+    }
+  }
+
+  window.addEventListener('message', function (ev) {
+    if (!vs.frame || ev.source !== vs.frame.contentWindow) return;
+    if (ev.data && ev.data.type === 'fg-vorschau-bereit') { vs.bereit = true; sendeVorschau(); }
+  });
+
+  async function vorschauLaden() {
+    if (!vs.id || !token) return;
+    var nr = ++vs.nr;
+    vs.msg.textContent = '';
+    try {
+      var data = await rpc('fg_admin_vorschau', { p_admin_token: token, p_kind_id: vs.id });
+      if (nr !== vs.nr) return;   // inzwischen wurde ein anderes Kind gewählt
+      vs.daten = data;
+      sendeVorschau();
+    } catch (e) {
+      if (nr !== vs.nr) return;
+      if (e.kind === 'ungueltig') { codeUngueltig(); return; }
+      if (e.kind === 'fehlt') e.message = 'Die Datenbankfunktion für die Vorschau fehlt noch. Bitte spiele zuerst die Datei fg_admin_vorschau.sql in Supabase ein.';
+      vs.msg.appendChild(h('div', { 'class': 'msg err', role: 'alert', text: e.message }));
+    }
+  }
+
+  function oeffneVorschau(id) {
+    var z = findRow(id);
+    if (!z) return;
+    baueVorschau();
+    vs.id = id;
+    vs.daten = null;
+    vs.titel.textContent = 'Vorschau: ' + z.name;
+    vs.eltern.textContent = z.eltern ? 'Eltern: ' + z.eltern : 'So sieht die Familie ihre Seite.';
+    if (!vdlg.open) {
+      if (breit.matches) vdlg.show(); else vdlg.showModal();
+    }
+    document.body.classList.add('vorschau-offen');
+    vs.titel.focus();
+    vorschauLaden();
+  }
+
+  function schliesseVorschau() {
+    vs.id = null; vs.daten = null; vs.nr++;
+    if (vdlg.open) vdlg.close();
+    document.body.classList.remove('vorschau-offen');
+  }
+  vdlg.addEventListener('close', function () { document.body.classList.remove('vorschau-offen'); });
 
   laden();
 })();

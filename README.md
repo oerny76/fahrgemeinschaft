@@ -84,3 +84,13 @@ personenbezogen und stehen nur in der Datenbank, nicht in diesem Repo.
 Die Seiten zeigen bei Fahrern die Eltern, mit Rückfall auf den Namen des Kindes, wenn keine Eltern
 gespeichert sind. Dafür einspielen: `sql/fg_eltern_anzeige.sql` (ersetzt drei Funktionen, enthält keine Namen).
 Die Seiten laufen auch ohne diese Datei, zeigen dann aber weiter die Kinder.
+
+## Vorschau: Was sieht die Familie?
+
+In der Admin-Übersicht ist jeder Kindername eine Taste. Ein Klick öffnet die Vorschau der Seite der Familie:
+auf dem Desktop als Seitenleiste neben der Tabelle, auf dem Handy als Überlagerung über die ganze Breite.
+Die Vorschau ist die echte Eltern-Seite im Vorschau-Modus (`index.html#vorschau`). Sie bekommt ihre Daten
+von der Admin-Seite, kennt keinen Zugangscode, alle Eingaben sind gesperrt und sie ruft die Datenbank nicht
+selbst auf. Nach einer Änderung im Admin-Dialog lädt sich die Vorschau neu.
+
+Einmal in Supabase einspielen: `sql/fg_admin_vorschau.sql` (liefert dieselben Daten wie die Eltern-Seite).

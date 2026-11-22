@@ -128,11 +128,18 @@
   var MSG_NETZ = 'Die Verbindung hat nicht geklappt. Bitte prüfe dein Internet und versuche es noch einmal.';
 
   // Token nur aus dem Fragment lesen, danach aus der Adresszeile entfernen.
+  // Vorschau-Modus (nur für den Admin): Die Seite bekommt ihre Daten von der Admin-Seite
+  // und kennt keinen Code. Alle Eingaben sind gesperrt und es gibt keine Datenbank-Aufrufe.
   var token = null;
+  var vorschau = false;
   try {
     var params = new URLSearchParams(location.hash.replace(/^#/, ''));
-    var t = params.get('t');
-    if (t && t.trim()) token = t.trim();
+    if (params.has('vorschau')) {
+      vorschau = true;
+    } else {
+      var t = params.get('t');
+      if (t && t.trim()) token = t.trim();
+    }
     if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   } catch (e) { /* ohne Token geht es unten weiter */ }
 
@@ -170,6 +177,7 @@
   }
 
   async function rpc(name, body) {
+    if (vorschau) throw { kind: 'db', message: 'In der Vorschau kann nichts geändert werden.' };
     var res;
     try {
       res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
@@ -226,7 +234,7 @@
 
   // ---------- Aktionen ----------
   async function run(r, fn, opts) {
-    if (busy) return;
+    if (busy || vorschau) return;
     opts = opts || {};
     busy = true;
     ui[r].msg = null;
@@ -342,7 +350,7 @@
   }
 
   async function aktualisieren(r) {
-    if (busy) return;
+    if (busy || vorschau) return;
     busy = true;
     ui[r].msg = null;
     render();
@@ -397,7 +405,7 @@
           if (id !== null && id !== undefined) {
             li.appendChild(h('button', {
               type: 'button', 'class': 'secondary small', id: 'entf-' + r + '-' + i,
-              'aria-label': name + ' entfernen', disabled: busy, text: 'Entfernen',
+              'aria-label': name + ' entfernen', disabled: busy || vorschau, text: 'Entfernen',
               onclick: function () { entfernen(r, id); }
             }));
           }
@@ -441,7 +449,7 @@
     if (u.choice === 'selbst') {
       kids.push(h('label', { 'class': 'field', 'for': 'plaetze-' + r, text: 'Wie viele Plätze hast du frei?' }));
       var sel = h('select', {
-        id: 'plaetze-' + r, disabled: busy,
+        id: 'plaetze-' + r, disabled: busy || vorschau,
         onchange: function (e) { u.plaetze = parseInt(e.target.value, 10); focusId = e.target.id; render(); }
       });
       for (var i = 0; i <= 8; i++) {
@@ -455,14 +463,14 @@
         kids.push(h('input', {
           type: 'text', id: 'stationen-' + r, maxlength: '200', required: true,
           value: u.stationen, autocomplete: 'off', placeholder: 'zum Beispiel: Wertingen, Dillingen',
-          disabled: busy,
+          disabled: busy || vorschau,
           oninput: function (e) { u.stationen = e.target.value; }
         }));
         kids.push(h('label', { 'class': 'field', 'for': 'treffpunkt-' + r, text: 'Anderer Treffpunkt für Mitfahrende (freiwillig)' }));
         kids.push(h('input', {
           type: 'text', id: 'treffpunkt-' + r, maxlength: String(MAX_ORT),
           value: u.treffpunkt, autocomplete: 'off', placeholder: 'zum Beispiel: Parkplatz am Sportplatz',
-          disabled: busy,
+          disabled: busy || vorschau,
           oninput: function (e) { u.treffpunkt = e.target.value; }
         }));
       }
@@ -470,7 +478,7 @@
       var frage = r === 'hin' ? 'Wo soll dein Kind abgeholt werden?' : 'Wohin soll dein Kind gebracht werden?';
       kids.push(h('label', { 'class': 'field', 'for': 'ort-' + r, text: frage }));
       var osel = h('select', {
-        id: 'ort-' + r, disabled: busy,
+        id: 'ort-' + r, disabled: busy || vorschau,
         onchange: function (e) { u.ort = e.target.value; focusId = e.target.id; render(); }
       }, [
         h('option', { value: 'schule', text: 'Schule', selected: u.ort === 'schule' }),
@@ -484,7 +492,7 @@
         kids.push(h('input', {
           type: 'text', id: 'zielort-' + r, maxlength: String(MAX_ORT), required: true,
           value: u.zielort, autocomplete: 'off', placeholder: 'zum Beispiel: Kirche in Rehling',
-          disabled: busy,
+          disabled: busy || vorschau,
           oninput: function (e) { u.zielort = e.target.value; }
         }));
       }
@@ -502,7 +510,7 @@
         text: u.choice === 'anderweitig' ? 'Anmerkung (freiwillig)' : 'Anmerkung für andere Eltern (freiwillig)' }));
       var zaehler = h('div', { 'class': 'zaehler', id: 'anmerkung-zaehler-' + r, 'aria-hidden': 'true', text: u.anmerkung.length + ' von ' + MAX_ANMERKUNG + ' Zeichen' });
       kids.push(h('textarea', {
-        id: 'anmerkung-' + r, maxlength: String(MAX_ANMERKUNG), rows: '3', disabled: busy,
+        id: 'anmerkung-' + r, maxlength: String(MAX_ANMERKUNG), rows: '3', disabled: busy || vorschau,
         'aria-describedby': 'anmerkung-hinweis-' + r, text: u.anmerkung,
         oninput: function (e) { u.anmerkung = e.target.value; zaehler.textContent = u.anmerkung.length + ' von ' + MAX_ANMERKUNG + ' Zeichen'; }
       }));
@@ -512,7 +520,7 @@
 
     if (u.choice) {
       kids.push(h('button', {
-        type: 'button', 'class': 'wide', id: 'speichern-' + r, disabled: busy,
+        type: 'button', 'class': 'wide', id: 'speichern-' + r, disabled: busy || vorschau,
         onclick: function () { speichern(r); },
         text: busy ? 'Einen Moment bitte.' : 'Speichern'
       }));
@@ -529,7 +537,7 @@
           s.faehrt_mit.ort_text ? h('div', { 'class': 'meta', text: 'Treffpunkt: ' + s.faehrt_mit.ort_text }) : null,
           s.faehrt_mit.anmerkung ? h('div', { 'class': 'anm', text: s.faehrt_mit.anmerkung }) : null,
           h('button', {
-            type: 'button', 'class': 'secondary wide', id: 'abgeben-' + r, disabled: busy,
+            type: 'button', 'class': 'secondary wide', id: 'abgeben-' + r, disabled: busy || vorschau,
             onclick: function () { abgeben(r); }, text: 'Platz abgeben'
           })
         ]));
@@ -548,7 +556,7 @@
               a.ort_text ? h('div', { 'class': 'meta', text: 'Treffpunkt: ' + a.ort_text }) : null,
               a.anmerkung ? h('div', { 'class': 'anm', text: a.anmerkung }) : null,
               h('button', {
-                type: 'button', 'class': 'wide', id: 'buche-' + r + '-' + i, disabled: busy || !(a.frei > 0),
+                type: 'button', 'class': 'wide', id: 'buche-' + r + '-' + i, disabled: busy || vorschau || !(a.frei > 0),
                 'aria-label': 'Platz nehmen bei ' + fahrerName(a),
                 onclick: function () { buchen(r, a.kind_id); }, text: 'Platz nehmen'
               })
@@ -556,7 +564,7 @@
           });
         }
         kids.push(h('button', {
-          type: 'button', 'class': 'secondary wide', id: 'aktualisieren-' + r, disabled: busy,
+          type: 'button', 'class': 'secondary wide', id: 'aktualisieren-' + r, disabled: busy || vorschau,
           onclick: function () { aktualisieren(r); }, text: 'Liste aktualisieren'
         }));
       }
@@ -577,7 +585,7 @@
       fs.appendChild(h('label', { 'class': 'choice' }, [
         h('input', {
           type: 'radio', name: 'opt-' + r, value: o[0], id: 'opt-' + r + '-' + o[0],
-          checked: u.choice === o[0], disabled: busy,
+          checked: u.choice === o[0], disabled: busy || vorschau,
           onchange: function (e) {
             u.choice = e.target.value;
             u.msg = null;
@@ -618,10 +626,15 @@
     if (!state) { return; }
 
     var k = state.kind || {};
+    if (vorschau) {
+      app.appendChild(h('div', { 'class': 'msg good', role: 'note',
+        text: 'Vorschau: So sieht die Familie ihre Seite. Hier kann nichts geändert werden.' }));
+    }
     app.appendChild(h('h1', { text: 'Fahrgemeinschaft für ' + (k.name || 'dein Kind') }));
     app.appendChild(h('p', { 'class': 'sub', style: 'color:var(--text);font-weight:700;margin-bottom:6px', text: 'Hier organisieren wir die Fahrgemeinschaften für den Theaterausflug am 3. Dezember 2026.' }));
     app.appendChild(h('p', { 'class': 'sub', text: 'Alle Fahrten gehen von oder zum Bahnhof Meitingen. Gib für jede Strecke einzeln an, wie dein Kind fährt.' }));
     RICHTUNGEN.forEach(function (r) { app.appendChild(card(r)); });
+    if (vorschau) return;
     app.appendChild(h('p', { 'class': 'foot', text: 'Wenn du die Seite neu lädst, öffne bitte noch einmal deinen Link.' }));
 
     if (focusId) {
@@ -642,7 +655,29 @@
     app.appendChild(box);
   }
 
+  // Vorschau: Daten kommen per Nachricht von der Admin-Seite (nur vom übergeordneten Fenster).
+  if (vorschau) {
+    window.addEventListener('message', function (ev) {
+      if (ev.source !== window.parent) return;
+      var d = ev.data;
+      if (!d || d.type !== 'fg-vorschau' || !d.daten) return;
+      if (!setStatus(d.daten.status)) { zeigeFehlerSeite('Für dieses Kind gibt es keine Daten.', false); return; }
+      initUi();
+      RICHTUNGEN.forEach(function (r) {
+        var l = d.daten.angebote && d.daten.angebote[r];
+        ui[r].angebote = Array.isArray(l) ? l : [];
+      });
+      render();
+    });
+  }
+
   async function start() {
+    if (vorschau) {
+      app.textContent = '';
+      app.appendChild(h('p', { 'class': 'center', text: 'Die Vorschau wird geladen.' }));
+      try { window.parent.postMessage({ type: 'fg-vorschau-bereit' }, '*'); } catch (e) { /* ohne Elternfenster bleibt es leer */ }
+      return;
+    }
     if (!token) { zeigeFehlerSeite(MSG_UNGUELTIG, false); return; }
     app.textContent = '';
     app.appendChild(h('p', { 'class': 'center', text: 'Einen Moment bitte.' }));
