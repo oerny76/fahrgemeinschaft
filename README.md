@@ -42,3 +42,13 @@ Die Seite `admin.html` zeigt den Gesamtstand und exportiert ihn als CSV.
 3. Link öffnen: `https://oerny76.github.io/fahrgemeinschaft/admin.html#a=<TOKEN>`
 4. Link nicht weitergeben. Er zeigt die Angaben aller Kinder.
 5. Code ungültig machen: `delete from fahrgemeinschaft.admin_zugang where token = '<TOKEN>';`
+
+## Admin als App auf dem iPhone
+
+1. Admin-Link in Safari öffnen (`.../admin.html#a=<TOKEN>`), dann Teilen, "Zum Home-Bildschirm".
+2. Die App vom Home-Bildschirm starten. Sie hat einen eigenen Speicher und kennt den Code aus Safari nicht.
+3. Im Feld "Admin-Code" den Code (oder den ganzen Link) einfügen und "Anmelden" tippen.
+   Mit "Auf diesem Gerät angemeldet bleiben" fragt die App nicht mehr nach.
+4. "Abmelden" löscht den Code vom Gerät.
+
+Bei Handyverlust den Code in Supabase löschen (siehe oben), dann ist er überall ungültig.

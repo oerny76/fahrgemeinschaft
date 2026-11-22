@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://gkqpgnwmmwvdtpdcqwye.supabase.co; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://gkqpgnwmmwvdtpdcqwye.supabase.co; img-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#0b5cad">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Fahrgemeinschaft">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>Fahrgemeinschaft Übersicht</title>
 <style>
   :root {
@@ -60,6 +66,15 @@
   .msg.good { background: var(--ok-bg); color: var(--ok-text); border: 2px solid var(--ok-line); }
   .center { text-align: center; padding: 40px 8px; }
   .empty { padding: 24px 12px; }
+  .login { max-width: 460px; margin: 0 auto; background: var(--card); border: 1px solid var(--soft-line);
+    border-radius: 14px; padding: 18px 16px; }
+  .login input[type="text"] { width: 100%; min-height: 52px; font: inherit; color: var(--text); background: #fff;
+    border: 2px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: 6px 0 14px;
+    -webkit-text-security: disc; }
+  .login label.field { font-weight: 700; display: block; }
+  .login .check { display: flex; align-items: center; gap: 12px; min-height: 48px; margin-bottom: 14px; }
+  .login .check input { width: 24px; height: 24px; flex: none; accent-color: var(--accent); }
+  .login button { width: 100%; min-height: 52px; }
 </style>
 </head>
 <body>
@@ -75,13 +90,32 @@
   var MSG_NETZ = 'Die Verbindung hat nicht geklappt. Bitte prüfe dein Internet und versuche es noch einmal.';
   var MSG_FEHLT = 'Die Datenbankfunktion für die Übersicht fehlt noch. Bitte spiele zuerst die Datei fg_admin_uebersicht.sql in Supabase ein.';
 
+  var SPEICHER_KEY = 'fg_admin_code';
+  function liesGespeichert() { try { return localStorage.getItem(SPEICHER_KEY) || null; } catch (e) { return null; } }
+  function speichere(c) { try { localStorage.setItem(SPEICHER_KEY, c); } catch (e) { /* ohne Speicher: nur für diese Sitzung */ } }
+  function vergiss() { try { localStorage.removeItem(SPEICHER_KEY); } catch (e) { /* nichts zu tun */ } }
+
+  // Woher kommt der Code? 'fragment' (Link), 'gespeichert' (Gerät) oder 'eingabe' (Formular).
   var token = null;
+  var quelle = null;
+  var merken = false;
   try {
     var params = new URLSearchParams(location.hash.replace(/^#/, ''));
     var t = params.get('a');
-    if (t && t.trim()) token = t.trim();
+    if (t && t.trim()) { token = t.trim(); quelle = 'fragment'; }
     if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   } catch (e) { /* ohne Code geht es unten weiter */ }
+  if (!token) {
+    var g = liesGespeichert();
+    if (g) { token = g; quelle = 'gespeichert'; }
+  }
+
+  // Erlaubt auch das Einfügen des ganzen Links.
+  function extrahiereCode(text) {
+    var s = String(text || '').trim();
+    var m = s.match(/[#&?]a=([^&\s]+)/);
+    return (m ? m[1] : s).trim();
+  }
 
   var app = document.getElementById('app');
   var rows = null;       // abgeleitete Zeilen
@@ -293,6 +327,8 @@
       h('span', { 'class': 'spacer' }),
       h('button', { type: 'button', 'class': 'secondary', id: 'aktualisieren', disabled: busy,
         onclick: laden, text: busy ? 'Einen Moment bitte.' : 'Aktualisieren' }),
+      h('button', { type: 'button', 'class': 'secondary', id: 'abmelden', disabled: busy,
+        onclick: abmelden, text: 'Abmelden' }),
       h('button', { type: 'button', id: 'export', disabled: busy || !liste.length,
         onclick: exportieren, text: 'CSV exportieren (' + liste.length + ')' })
     ]));
@@ -337,9 +373,47 @@
     app.appendChild(box);
   }
 
+  function zeigeLogin(fehler) {
+    app.textContent = '';
+    app.appendChild(h('h1', { text: 'Fahrgemeinschaft Übersicht' }));
+    app.appendChild(h('p', { 'class': 'sub', text: 'Theaterausflug am 3. Dezember 2026.' }));
+
+    var feld = h('input', {
+      type: 'text', id: 'code', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off',
+      spellcheck: 'false', inputmode: 'text', 'aria-describedby': fehler ? 'login-fehler' : null,
+      'aria-invalid': fehler ? 'true' : null
+    });
+    var haken = h('input', { type: 'checkbox', id: 'merken', checked: 'checked' });
+    haken.checked = true;
+    var tasteAnmelden = h('button', { type: 'submit', id: 'anmelden', text: 'Anmelden' });
+
+    var form = h('form', { 'class': 'login', novalidate: 'novalidate' }, [
+      fehler ? h('div', { 'class': 'msg err', id: 'login-fehler', role: 'alert', text: fehler }) : null,
+      h('label', { 'class': 'field', 'for': 'code', text: 'Admin-Code' }),
+      feld,
+      h('label', { 'class': 'check', 'for': 'merken' }, [haken, h('span', { text: 'Auf diesem Gerät angemeldet bleiben' })]),
+      tasteAnmelden
+    ]);
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var code = extrahiereCode(feld.value);
+      if (!code) { zeigeLogin('Bitte gib deinen Admin-Code ein.'); return; }
+      token = code; quelle = 'eingabe'; merken = haken.checked;
+      laden();
+    });
+    app.appendChild(form);
+    feld.focus();
+  }
+
+  function abmelden() {
+    vergiss();
+    token = null; quelle = null; rows = null; meldung = null; suche = ''; filter = 'alle';
+    zeigeLogin();
+  }
+
   async function laden() {
     if (busy) return;
-    if (!token) { zeigeFehlerSeite(MSG_UNGUELTIG, false); return; }
+    if (!token) { zeigeLogin(); return; }
     busy = true; meldung = null;
     if (rows) render();
     try {
@@ -347,9 +421,23 @@
       rows = baueZeilen(data);
       stand = new Date();
       busy = false;
+      if (quelle === 'eingabe' && merken) speichere(token);
       render();
     } catch (e) {
       busy = false;
+      if (e.kind === 'ungueltig') {
+        var war = quelle;
+        token = null; quelle = null; rows = null;
+        if (war === 'gespeichert') {
+          vergiss();
+          zeigeLogin('Der gespeicherte Code gilt nicht mehr. Bitte gib den Code noch einmal ein.');
+        } else if (war === 'eingabe') {
+          zeigeLogin('Dieser Code ist nicht gültig. Bitte prüfe ihn und versuche es noch einmal.');
+        } else {
+          zeigeLogin(MSG_UNGUELTIG + ' Du kannst den Code auch hier eingeben.');
+        }
+        return;
+      }
       if (rows) { meldung = { type: 'err', text: e.message }; render(); }
       else zeigeFehlerSeite(e.message, e.kind === 'net' || e.kind === 'db');
     }
