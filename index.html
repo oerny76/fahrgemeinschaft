@@ -511,6 +511,7 @@
 
     var k = state.kind || {};
     app.appendChild(h('h1', { text: 'Fahrgemeinschaft für ' + (k.name || 'dein Kind') }));
+    app.appendChild(h('p', { 'class': 'sub', style: 'color:var(--text);font-weight:700;margin-bottom:6px', text: 'Hier organisieren wir die Fahrgemeinschaften für den Theaterausflug am 3. Dezember 2026.' }));
     app.appendChild(h('p', { 'class': 'sub', text: 'Alle Fahrten gehen von oder zum Bahnhof Meitingen. Gib für jede Strecke einzeln an, wie dein Kind fährt.' }));
     RICHTUNGEN.forEach(function (r) { app.appendChild(card(r)); });
     app.appendChild(h('p', { 'class': 'foot', text: 'Wenn du die Seite neu lädst, öffne bitte noch einmal deinen Link.' }));
