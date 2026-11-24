@@ -392,6 +392,8 @@
       h('span', { 'class': 'spacer' }),
       h('button', { type: 'button', 'class': 'secondary', id: 'aktualisieren', disabled: busy,
         onclick: laden, text: busy ? 'Einen Moment bitte.' : 'Aktualisieren' }),
+      h('button', { type: 'button', 'class': 'secondary', id: 'ergebnis', disabled: busy,
+        onclick: function () { location.href = 'ergebnis.html#a=' + encodeURIComponent(token); }, text: 'Ergebnis (Autos)' }),
       h('button', { type: 'button', 'class': 'secondary', id: 'abmelden', disabled: busy,
         onclick: abmelden, text: 'Abmelden' }),
       h('button', { type: 'button', id: 'export', disabled: busy || !liste.length,

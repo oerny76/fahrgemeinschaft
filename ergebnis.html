@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://gkqpgnwmmwvdtpdcqwye.supabase.co; img-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#0b5cad">
+<title>Fahrgemeinschaft Ergebnis</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #ffffff; --text: #1b2430; --muted: #4a5666;
+    --line: #8a97a8; --soft-line: #d5dce4; --accent: #0b5cad; --accent-text: #ffffff;
+    --ok-bg: #e6f4ea; --ok-text: #14532d; --ok-line: #2f7d4f;
+    --warn-bg: #fff1c2; --warn-text: #5c3b00; --warn-line: #b57900;
+    --none-bg: #eef2f6; --none-text: #33404f;
+    --err-bg: #fde8e8; --err-text: #7a1212; --err-line: #b42323;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px 16px 48px; }
+  h1 { font-size: 1.5rem; margin: 8px 0 4px; line-height: 1.25; }
+  h2 { font-size: 1.25rem; margin: 28px 0 4px; }
+  h3 { font-size: 1.05rem; margin: 20px 0 8px; }
+  p { margin: 0 0 12px; }
+  .sub { color: var(--muted); }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 16px 0; }
+  .bar label { display: block; font-weight: 700; margin-bottom: 4px; }
+  select, input[type="search"] { min-height: 48px; font: inherit; color: var(--text); background: #fff;
+    border: 2px solid var(--line); border-radius: 10px; padding: 6px 12px; min-width: 200px; }
+  select:focus, input:focus { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  button { font: inherit; font-weight: 700; min-height: 48px; padding: 8px 18px; border-radius: 10px;
+    border: 2px solid var(--accent); background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button.secondary { background: #fff; color: var(--accent); }
+  button:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .spacer { flex: 1; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 8px; }
+  .tile { background: var(--card); border: 1px solid var(--soft-line); border-radius: 12px; padding: 10px 14px; }
+  .tile .num { font-size: 1.8rem; font-weight: 800; line-height: 1.1; }
+  .tile .lbl { color: var(--muted); }
+  .tile.warn { background: var(--warn-bg); border: 2px solid var(--warn-line); color: var(--warn-text); }
+  .tile.warn .lbl { color: var(--warn-text); }
+  .cars { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin-top: 8px; }
+  .car { background: var(--card); border: 1px solid var(--soft-line); border-radius: 12px; padding: 12px 14px;
+    break-inside: avoid; page-break-inside: avoid; }
+  .car h4 { margin: 0 0 2px; font-size: 1.05rem; line-height: 1.3; }
+  .car .weg { font-weight: 700; color: var(--accent); margin: 0 0 4px; }
+  .car .meta { color: var(--muted); display: block; }
+  .car .full { color: var(--ok-text); font-weight: 700; }
+  .car .free { color: var(--warn-text); font-weight: 700; }
+  .car ul { list-style: none; margin: 8px 0 0; padding: 0; }
+  .car li { padding: 6px 0; border-top: 1px solid var(--soft-line); }
+  .car li .nm { font-weight: 700; }
+  .tag { display: inline-block; border-radius: 999px; padding: 0 8px; font-size: .85rem; font-weight: 700;
+    border: 1px solid var(--ok-line); background: var(--ok-bg); color: var(--ok-text); margin-left: 6px; }
+  .anm { display: block; margin-top: 2px; padding-left: 8px; border-left: 3px solid var(--line); color: var(--muted); }
+  .scroll { overflow-x: auto; background: var(--card); border: 1px solid var(--soft-line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-top: 1px solid var(--soft-line); }
+  thead th { background: #e9eef3; }
+  .msg { border-radius: 10px; padding: 12px 14px; margin: 12px 0; font-weight: 700; }
+  .msg.err { background: var(--err-bg); color: var(--err-text); border: 2px solid var(--err-line); }
+  .msg.good { background: var(--ok-bg); color: var(--ok-text); border: 2px solid var(--ok-line); }
+  .center { text-align: center; padding: 40px 8px; }
+  .empty { padding: 12px 0; color: var(--muted); }
+  .login { max-width: 460px; margin: 0 auto; background: var(--card); border: 1px solid var(--soft-line);
+    border-radius: 14px; padding: 18px 16px; }
+  .login input[type="text"] { width: 100%; min-height: 52px; font: inherit; color: var(--text); background: #fff;
+    border: 2px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: 6px 0 14px;
+    -webkit-text-security: disc; }
+  .login label.field { font-weight: 700; display: block; }
+  .login .check { display: flex; align-items: center; gap: 12px; min-height: 48px; margin-bottom: 14px; }
+  .login .check input { width: 24px; height: 24px; flex: none; accent-color: var(--accent); }
+  .login button { width: 100%; min-height: 52px; }
+  @media print {
+    body { background: #fff; font-size: 11pt; }
+    .bar, .noprint, .msg { display: none !important; }
+    main { padding: 0; max-width: none; }
+    .cars { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .car, .tile, .scroll { border-color: #999; }
+    h2 { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"><p class="center">Einen Moment bitte.</p></main>
+
+<script>
+(function () {
+  'use strict';
+
+  var SUPABASE_URL = 'https://gkqpgnwmmwvdtpdcqwye.supabase.co';
+  var PUBLISHABLE_KEY = 'sb_publishable_1EraAljaYautx0yw-eLrsw_X25gwY2M';
+  var ZIEL = 'Meitingen';
+  var MSG_UNGUELTIG = 'Dieser Link ist nicht gültig. Bitte nutze den Link, den du bekommen hast.';
+  var MSG_NETZ = 'Die Verbindung hat nicht geklappt. Bitte prüfe dein Internet und versuche es noch einmal.';
+  var MSG_FEHLT = 'Die Datenbankfunktion für die Übersicht fehlt noch. Bitte spiele zuerst die Datei fg_admin_uebersicht.sql in Supabase ein.';
+
+  // Gleicher Speicher wie die Admin-Seite: Wer dort angemeldet bleibt, ist auch hier angemeldet.
+  var SPEICHER_KEY = 'fg_admin_code';
+  function liesGespeichert() { try { return localStorage.getItem(SPEICHER_KEY) || null; } catch (e) { return null; } }
+  function speichere(c) { try { localStorage.setItem(SPEICHER_KEY, c); } catch (e) { /* nur für diese Sitzung */ } }
+  function vergiss() { try { localStorage.removeItem(SPEICHER_KEY); } catch (e) { /* nichts zu tun */ } }
+
+  var token = null, quelle = null, merken = false;
+  try {
+    var params = new URLSearchParams(location.hash.replace(/^#/, ''));
+    var t = params.get('a');
+    if (t && t.trim()) { token = t.trim(); quelle = 'fragment'; }
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  } catch (e) { /* ohne Code geht es unten weiter */ }
+  if (!token) {
+    var g = liesGespeichert();
+    if (g) { token = g; quelle = 'gespeichert'; }
+  }
+
+  function extrahiereCode(text) {
+    var s = String(text || '').trim();
+    var m = s.match(/[#&?]a=([^&\s]+)/);
+    return (m ? m[1] : s).trim();
+  }
+
+  var app = document.getElementById('app');
+  var rows = null, stand = null, busy = false, meldung = null;
+  var ansicht = 'beide';   // 'hin' | 'rueck' | 'beide'
+  var jahrgang = 'alle';
+  var suche = '';
+
+  function h(tag, attrs, kids) {
+    var el = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      var v = attrs[k];
+      if (v === null || v === undefined || v === false) return;
+      if (k === 'text') el.textContent = v;
+      else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else if (k === 'disabled' || k === 'selected') { if (v) el[k] = true; }
+      else el.setAttribute(k, v === true ? '' : v);
+    });
+    (kids || []).forEach(function (c) {
+      if (c === null || c === undefined || c === false) return;
+      el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    });
+    return el;
+  }
+
+  async function rpc(name, body) {
+    var res;
+    try {
+      res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
+        method: 'POST',
+        headers: { 'apikey': PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body), referrerPolicy: 'no-referrer', cache: 'no-store'
+      });
+    } catch (e) { throw { kind: 'net', message: MSG_NETZ }; }
+    var data = null;
+    try { var txt = await res.text(); data = txt ? JSON.parse(txt) : null; } catch (e) { data = null; }
+    if (!res.ok) {
+      if (data && data.code === 'P0001') {
+        var m = String(data.message || '');
+        if (/Ungültiger Zugangslink/.test(m)) throw { kind: 'ungueltig', message: MSG_UNGUELTIG };
+        throw { kind: 'regel', message: m || 'Das hat leider nicht geklappt. Bitte versuche es noch einmal.' };
+      }
+      if (data && data.code === 'PGRST202') throw { kind: 'fehlt', message: MSG_FEHLT };
+      throw { kind: 'db', message: 'Das hat leider nicht geklappt. Bitte versuche es noch einmal.' };
+    }
+    return data;
+  }
+
+  function fmtZeit(d) {
+    try {
+      return d.toLocaleString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return String(d); }
+  }
+
+  // ---------- Daten ableiten ----------
+  function leiteAb(s) {
+    s = s || {};
+    var mitRoh = Array.isArray(s.mitfahrende) ? s.mitfahrende : [];
+    var mit = mitRoh.map(function (m) {
+      if (typeof m === 'string') return { id: null, name: m, eltern: '' };
+      return { id: (m && m.kind_id) || null, name: (m && m.name) || '', eltern: (m && m.eltern) || '' };
+    });
+    var art = 'none';
+    if (s.status === 'selbst') art = 'selbst';
+    else if (s.status === 'suche') art = s.faehrt_mit ? 'gefunden' : 'suche';
+    else if (s.status === 'anderweitig') art = 'anders';
+    var angeboten = art === 'selbst' ? (s.plaetze_frei || 0) : 0;
+    var ort = '';
+    if (s.status === 'suche') {
+      ort = s.ort_typ === 'wohnort' ? 'Wohnort' : (s.ort_typ === 'anderer' ? 'Anderer Ort: ' + (s.ort_text || '') : 'Schule');
+    }
+    return {
+      art: art, angeboten: angeboten, mit: mit, frei: Math.max(0, angeboten - mit.length),
+      orte: s.stationen || '', treffpunkt: art === 'selbst' ? (s.ort_text || '') : '',
+      ort: ort, anmerkung: s.anmerkung || '', fahrerId: s.faehrt_mit_id || null
+    };
+  }
+
+  function baueZeilen(data) {
+    return (Array.isArray(data) ? data : []).map(function (k) {
+      var st = k.strecken || {};
+      return {
+        id: k.kind_id, name: k.name || '', jahrgang: k.jahrgang, wohnort: k.ort || '',
+        eltern: k.eltern || '', hin: leiteAb(st.hin), rueck: leiteAb(st.rueck)
+      };
+    });
+  }
+
+  function findRow(id) {
+    for (var i = 0; i < rows.length; i++) if (rows[i].id === id) return rows[i];
+    return null;
+  }
+
+  function elternText(z) { return z.eltern || z.name; }
+
+  // Ein Auto = ein Kind mit Stand "fährt selbst", dazu die Mitfahrenden.
+  function autosFuer(r) {
+    var autos = [];
+    rows.forEach(function (z) {
+      var s = z[r];
+      if (s.art !== 'selbst') return;
+      var kinder = [{ row: z, eigenes: true, name: z.name, eltern: z.eltern }];
+      s.mit.forEach(function (m) {
+        var mr = m.id ? findRow(m.id) : null;
+        kinder.push({ row: mr, eigenes: false, name: m.name, eltern: m.eltern || (mr ? mr.eltern : '') });
+      });
+      autos.push({ fahrer: z, s: s, kinder: kinder });
+    });
+    autos.sort(function (a, b) { return elternText(a.fahrer).localeCompare(elternText(b.fahrer), 'de'); });
+    return autos;
+  }
+
+  function jahrgaenge() {
+    var set = {};
+    rows.forEach(function (z) { if (z.jahrgang !== null && z.jahrgang !== undefined && z.jahrgang !== '') set[z.jahrgang] = true; });
+    return Object.keys(set).sort(function (a, b) { return a - b; });
+  }
+
+  function kindPasst(k) {
+    if (suche) {
+      var t = (k.name + ' ' + (k.eltern || '')).toLowerCase();
+      if (t.indexOf(suche.toLowerCase()) === -1) return false;
+    }
+    if (jahrgang !== 'alle') return !!(k.row && String(k.row.jahrgang) === jahrgang);
+    return true;
+  }
+
+  function autoPasst(a) {
+    if (suche === '' && jahrgang === 'alle') return true;
+    return a.kinder.some(kindPasst);
+  }
+
+  function zeilePasst(z) {
+    if (jahrgang !== 'alle' && String(z.jahrgang) !== jahrgang) return false;
+    if (suche && (z.name + ' ' + z.eltern).toLowerCase().indexOf(suche.toLowerCase()) === -1) return false;
+    return true;
+  }
+
+  // ---------- Darstellung ----------
+  var TITEL = { hin: 'Hinfahrt', rueck: 'Rückfahrt' };
+
+  function wegText(r, orte) {
+    var o = orte || 'Wohnort des Fahrers';
+    return r === 'hin' ? o + ' nach ' + ZIEL : ZIEL + ' nach ' + o;
+  }
+
+  function autoKarte(a, r) {
+    var s = a.s;
+    var kids = a.kinder.map(function (k) {
+      var teile = [h('span', { 'class': 'nm', text: k.name })];
+      if (k.eigenes) teile.push(h('span', { 'class': 'tag', text: 'Kind des Fahrers' }));
+      var info = [];
+      if (k.eltern) info.push('Eltern: ' + k.eltern);
+      if (k.row) info.push('Jahrgang ' + k.row.jahrgang);
+      if (!k.eigenes && k.row && k.row[r].ort) info.push((r === 'hin' ? 'Abholung: ' : 'Bringen: ') + k.row[r].ort.replace(/^Anderer Ort: /, ''));
+      var li = [h('span', null, teile)];
+      if (info.length) li.push(h('span', { 'class': 'meta', text: info.join(', ') }));
+      var anm = k.row ? k.row[r].anmerkung : '';
+      if (anm) li.push(h('span', { 'class': 'anm', text: 'Anmerkung: ' + anm }));
+      return h('li', null, li);
+    });
+    var n = a.kinder.length;
+    var platzInfo;
+    if (s.angeboten === 0) platzInfo = h('span', { 'class': 'meta', text: 'Nimmt niemanden mit.' });
+    else if (s.frei === 0) platzInfo = h('span', { 'class': 'meta full', text: 'Voll besetzt, ' + s.mit.length + ' von ' + s.angeboten + ' Plätzen belegt.' });
+    else platzInfo = h('span', { 'class': 'meta free', text: s.mit.length + ' von ' + s.angeboten + ' Plätzen belegt, noch ' + s.frei + ' frei.' });
+    var kopf = [
+      h('h4', { text: elternText(a.fahrer) }),
+      h('p', { 'class': 'weg', text: wegText(r, s.orte || a.fahrer.wohnort) }),
+      s.treffpunkt ? h('span', { 'class': 'meta', text: 'Treffpunkt: ' + s.treffpunkt }) : null,
+      platzInfo,
+      h('span', { 'class': 'meta', text: n + (n === 1 ? ' Kind' : ' Kinder') + ' im Auto' }),
+      s.anmerkung ? h('span', { 'class': 'anm', text: 'Anmerkung: ' + s.anmerkung }) : null,
+      h('ul', null, kids)
+    ];
+    return h('div', { 'class': 'car' }, kopf);
+  }
+
+  function kachel(zahl, text, warn) {
+    return h('div', { 'class': 'tile' + (warn ? ' warn' : '') }, [
+      h('div', { 'class': 'num', text: String(zahl) }), h('div', { 'class': 'lbl', text: text })
+    ]);
+  }
+
+  function einfacheTabelle(kopf, zeilen) {
+    return h('div', { 'class': 'scroll' }, [h('table', null, [
+      h('thead', null, [h('tr', null, kopf.map(function (c) { return h('th', { scope: 'col', text: c }); }))]),
+      h('tbody', null, zeilen.map(function (r) {
+        return h('tr', null, r.map(function (c, i) { return i === 0 ? h('th', { scope: 'row', text: c }) : h('td', { text: c }); }));
+      }))
+    ])]);
+  }
+
+  function abschnitt(r) {
+    var alle = autosFuer(r);
+    var autos = alle.filter(autoPasst);
+    var kinderImAuto = alle.reduce(function (n, a) { return n + a.kinder.length; }, 0);
+    var frei = alle.reduce(function (n, a) { return n + a.s.frei; }, 0);
+    var ohne = rows.filter(function (z) { return z[r].art === 'suche'; });
+    var anders = rows.filter(function (z) { return z[r].art === 'anders'; });
+    var nichts = rows.filter(function (z) { return z[r].art === 'none'; });
+
+    var sec = h('section', { 'aria-labelledby': 'h-' + r });
+    sec.appendChild(h('h2', { id: 'h-' + r, text: TITEL[r] + (r === 'hin' ? ': nach ' + ZIEL : ': von ' + ZIEL + ' zurück') }));
+    sec.appendChild(h('div', { 'class': 'tiles' }, [
+      kachel(alle.length, 'Autos'),
+      kachel(kinderImAuto, 'Kinder in Autos'),
+      kachel(frei, 'Freie Plätze'),
+      kachel(ohne.length, 'Suchen noch einen Platz', ohne.length > 0),
+      kachel(anders.length, 'Anders geregelt'),
+      kachel(nichts.length, 'Noch nichts angegeben', nichts.length > 0)
+    ]));
+
+    var gefiltert = suche !== '' || jahrgang !== 'alle';
+    sec.appendChild(h('h3', { text: 'Fahrgemeinschaften' + (gefiltert ? ' (' + autos.length + ' von ' + alle.length + ')' : '') }));
+    if (!autos.length) sec.appendChild(h('p', { 'class': 'empty', text: 'Keine Fahrgemeinschaften gefunden.' }));
+    else sec.appendChild(h('div', { 'class': 'cars' }, autos.map(function (a) { return autoKarte(a, r); })));
+
+    var ohneL = ohne.filter(zeilePasst);
+    if (ohneL.length) {
+      sec.appendChild(h('h3', { text: 'Noch ohne Platz (' + ohneL.length + ')' }));
+      sec.appendChild(einfacheTabelle(['Kind', 'Eltern', 'Jahrgang', r === 'hin' ? 'Abholung' : 'Bringen', 'Anmerkung'],
+        ohneL.map(function (z) { return [z.name, z.eltern, String(z.jahrgang), z[r].ort, z[r].anmerkung]; })));
+    }
+    var andersL = anders.filter(zeilePasst);
+    if (andersL.length) {
+      sec.appendChild(h('h3', { text: 'Anders geregelt (' + andersL.length + ')' }));
+      sec.appendChild(einfacheTabelle(['Kind', 'Eltern', 'Jahrgang', 'Anmerkung'],
+        andersL.map(function (z) { return [z.name, z.eltern, String(z.jahrgang), z[r].anmerkung]; })));
+    }
+    var nichtsL = nichts.filter(zeilePasst);
+    if (nichtsL.length) {
+      sec.appendChild(h('h3', { text: 'Noch nichts angegeben (' + nichtsL.length + ')' }));
+      sec.appendChild(einfacheTabelle(['Kind', 'Eltern', 'Jahrgang'],
+        nichtsL.map(function (z) { return [z.name, z.eltern, String(z.jahrgang)]; })));
+    }
+    return sec;
+  }
+
+  function render() {
+    var fokus = document.activeElement && document.activeElement.id;
+    app.textContent = '';
+    if (!rows) return;
+
+    app.appendChild(h('h1', { text: 'Fahrgemeinschaft Ergebnis' }));
+    app.appendChild(h('p', { 'class': 'sub', text: 'Theaterausflug am 3. Dezember 2026 nach ' + ZIEL + '. Stand: ' + fmtZeit(stand) + ' Uhr.' }));
+    if (meldung) app.appendChild(h('div', { 'class': 'msg ' + meldung.type, role: meldung.type === 'err' ? 'alert' : 'status', text: meldung.text }));
+
+    var selA = h('select', { id: 'ansicht', onchange: function (e) { ansicht = e.target.value; render(); } });
+    [['beide', 'Hin- und Rückfahrt'], ['hin', 'Nur Hinfahrt'], ['rueck', 'Nur Rückfahrt']].forEach(function (o) {
+      selA.appendChild(h('option', { value: o[0], text: o[1], selected: ansicht === o[0] }));
+    });
+    var selJ = h('select', { id: 'jahrgang', onchange: function (e) { jahrgang = e.target.value; render(); } });
+    selJ.appendChild(h('option', { value: 'alle', text: 'Alle Jahrgänge', selected: jahrgang === 'alle' }));
+    jahrgaenge().forEach(function (j) {
+      selJ.appendChild(h('option', { value: j, text: 'Jahrgang ' + j, selected: jahrgang === j }));
+    });
+
+    app.appendChild(h('div', { 'class': 'bar' }, [
+      h('div', null, [h('label', { 'for': 'ansicht', text: 'Anzeigen' }), selA]),
+      h('div', null, [h('label', { 'for': 'jahrgang', text: 'Jahrgang' }), selJ]),
+      h('div', null, [h('label', { 'for': 'suche', text: 'Name suchen' }),
+        h('input', { type: 'search', id: 'suche', value: suche, autocomplete: 'off',
+          oninput: function (e) { suche = e.target.value; render(); } })]),
+      h('span', { 'class': 'spacer' }),
+      h('button', { type: 'button', 'class': 'secondary', id: 'aktualisieren', disabled: busy,
+        onclick: laden, text: busy ? 'Einen Moment bitte.' : 'Aktualisieren' }),
+      h('button', { type: 'button', 'class': 'secondary', id: 'drucken', onclick: function () { window.print(); }, text: 'Drucken' }),
+      h('button', { type: 'button', 'class': 'secondary', id: 'export', onclick: exportieren, text: 'CSV exportieren' }),
+      h('button', { type: 'button', 'class': 'secondary', id: 'zur-admin', onclick: zurAdmin, text: 'Zur Übersicht' })
+    ]));
+
+    if (ansicht === 'beide' || ansicht === 'hin') app.appendChild(abschnitt('hin'));
+    if (ansicht === 'beide' || ansicht === 'rueck') app.appendChild(abschnitt('rueck'));
+
+    if (fokus) {
+      var el = document.getElementById(fokus);
+      if (el) {
+        el.focus();
+        if (fokus === 'suche' && el.setSelectionRange) { var n = el.value.length; el.setSelectionRange(n, n); }
+      }
+    }
+  }
+
+  function zurAdmin() {
+    location.href = 'admin.html' + (token ? '#a=' + encodeURIComponent(token) : '');
+  }
+
+  // ---------- CSV: eine Zeile pro Kind und Strecke ----------
+  function csvFeld(v) {
+    var s = v === null || v === undefined ? '' : String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+
+  function csvErzeugen() {
+    var zeilen = [['Strecke', 'Fahrgemeinschaft (Eltern des Fahrers)', 'Orte des Autos', 'Treffpunkt', 'Kind', 'Eltern des Kindes',
+      'Jahrgang', 'Rolle', 'Abholung bzw. Ziel', 'Anmerkung']];
+    ['hin', 'rueck'].forEach(function (r) {
+      autosFuer(r).forEach(function (a) {
+        a.kinder.forEach(function (k) {
+          zeilen.push([TITEL[r], elternText(a.fahrer), a.s.orte, a.s.treffpunkt, k.name, k.eltern,
+            k.row ? k.row.jahrgang : '', k.eigenes ? 'Kind des Fahrers' : 'Mitfahrer',
+            !k.eigenes && k.row ? k.row[r].ort : '', k.row ? k.row[r].anmerkung : '']);
+        });
+      });
+      var rest = { suche: 'Sucht noch einen Platz', anders: 'Anders geregelt', none: 'Noch nichts angegeben' };
+      rows.forEach(function (z) {
+        var s = z[r];
+        if (rest[s.art]) zeilen.push([TITEL[r], '', '', '', z.name, z.eltern, z.jahrgang, rest[s.art], s.ort, s.anmerkung]);
+      });
+    });
+    return '﻿' + zeilen.map(function (r) { return r.map(csvFeld).join(';'); }).join('\r\n') + '\r\n';
+  }
+
+  function exportieren() {
+    var blob = new Blob([csvErzeugen()], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var d = new Date();
+    var p2 = function (n) { return String(n).padStart(2, '0'); };
+    var a = h('a', { href: url, download: 'fahrgemeinschaft-ergebnis-' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + '.csv' });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    meldung = { type: 'good', text: 'Die CSV wurde erstellt.' };
+    render();
+  }
+
+  // ---------- Anmeldung und Laden ----------
+  function zeigeFehlerSeite(text, nochmal) {
+    app.textContent = '';
+    app.appendChild(h('h1', { text: 'Fahrgemeinschaft Ergebnis' }));
+    var box = h('div', { 'class': 'center' }, [h('p', { role: 'alert', text: text })]);
+    if (nochmal) box.appendChild(h('button', { type: 'button', onclick: laden, text: 'Noch einmal versuchen' }));
+    app.appendChild(box);
+  }
+
+  function zeigeLogin(fehler) {
+    app.textContent = '';
+    app.appendChild(h('h1', { text: 'Fahrgemeinschaft Ergebnis' }));
+    app.appendChild(h('p', { 'class': 'sub', text: 'Theaterausflug am 3. Dezember 2026.' }));
+    var feld = h('input', {
+      type: 'text', id: 'code', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off',
+      spellcheck: 'false', inputmode: 'text', 'aria-describedby': fehler ? 'login-fehler' : null,
+      'aria-invalid': fehler ? 'true' : null
+    });
+    var haken = h('input', { type: 'checkbox', id: 'merken', checked: 'checked' });
+    haken.checked = true;
+    var form = h('form', { 'class': 'login', novalidate: 'novalidate' }, [
+      fehler ? h('div', { 'class': 'msg err', id: 'login-fehler', role: 'alert', text: fehler }) : null,
+      h('label', { 'class': 'field', 'for': 'code', text: 'Zugangscode' }),
+      feld,
+      h('label', { 'class': 'check', 'for': 'merken' }, [haken, h('span', { text: 'Auf diesem Gerät angemeldet bleiben' })]),
+      h('button', { type: 'submit', id: 'anmelden', text: 'Anmelden' })
+    ]);
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var code = extrahiereCode(feld.value);
+      if (!code) { zeigeLogin('Bitte gib deinen Zugangscode ein.'); return; }
+      token = code; quelle = 'eingabe'; merken = haken.checked;
+      laden();
+    });
+    app.appendChild(form);
+    feld.focus();
+  }
+
+  async function laden() {
+    if (busy) return;
+    if (!token) { zeigeLogin(); return; }
+    busy = true; meldung = null;
+    if (rows) render();
+    try {
+      var data = await rpc('fg_admin_uebersicht', { p_admin_token: token });
+      rows = baueZeilen(data);
+      stand = new Date();
+      busy = false;
+      if (quelle === 'eingabe' && merken) speichere(token);
+      render();
+    } catch (e) {
+      busy = false;
+      if (e.kind === 'ungueltig') {
+        var war = quelle;
+        token = null; quelle = null; rows = null;
+        if (war === 'gespeichert') { vergiss(); zeigeLogin('Der gespeicherte Code gilt nicht mehr. Bitte gib den Code noch einmal ein.'); }
+        else if (war === 'eingabe') zeigeLogin('Dieser Code ist nicht gültig. Bitte prüfe ihn und versuche es noch einmal.');
+        else zeigeLogin(MSG_UNGUELTIG + ' Du kannst den Code auch hier eingeben.');
+        return;
+      }
+      if (rows) { meldung = { type: 'err', text: e.message }; render(); }
+      else zeigeFehlerSeite(e.message, e.kind === 'net' || e.kind === 'db' || e.kind === 'regel');
+    }
+  }
+
+  laden();
+})();
+</script>
+</body>
+</html>

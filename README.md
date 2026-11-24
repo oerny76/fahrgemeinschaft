@@ -94,3 +94,17 @@ von der Admin-Seite, kennt keinen Zugangscode, alle Eingaben sind gesperrt und s
 selbst auf. Nach einer Änderung im Admin-Dialog lädt sich die Vorschau neu.
 
 Einmal in Supabase einspielen: `sql/fg_admin_vorschau.sql` (liefert dieselben Daten wie die Eltern-Seite).
+
+## Ergebnis: Wer fährt mit wem?
+
+Die Seite `ergebnis.html` zeigt je Strecke (Hinfahrt nach Meitingen, Rückfahrt von Meitingen) alle Autos:
+die Eltern des Fahrers, die angefahrenen Orte, den Treffpunkt, die belegten und freien Plätze und die Kinder
+im Auto mit ihren Eltern. Darunter stehen die Kinder ohne Platz, mit anderer Regelung und ohne Angabe.
+Oben stehen Zahlen: Autos, Kinder in Autos, freie Plätze. Es gibt einen Filter nach Jahrgang, die Namenssuche,
+Drucken und einen CSV-Export (eine Zeile pro Kind und Strecke).
+
+- Aufruf aus der Admin-Seite mit der Taste "Ergebnis (Autos)" oder direkt: `.../ergebnis.html#a=<ADMIN-TOKEN>`.
+- Die Seite nutzt dieselbe Datenbankfunktion und denselben Admin-Code wie `admin.html`. Es muss nichts Neues
+  in Supabase eingespielt werden.
+- Noch ohne eigenen Zugang für Klassenleitungen. Wer die Seite öffnen darf, sieht alle Kinder.
+  Später kann ein eigener Code mit eigener Funktion davor (z. B. nur Lesen, nur eine Klasse).
