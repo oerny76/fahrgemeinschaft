@@ -264,6 +264,7 @@
 
   function wegText(r, orte) {
     var o = orte || 'Wohnort des Fahrers';
+    if (o.trim().toLowerCase() === ZIEL.toLowerCase()) return 'Wohnt in ' + ZIEL;
     return r === 'hin' ? o + ' nach ' + ZIEL : ZIEL + ' nach ' + o;
   }
 
@@ -284,7 +285,7 @@
     });
     var n = a.kinder.length;
     var platzInfo;
-    if (s.angeboten === 0) platzInfo = h('span', { 'class': 'meta', text: 'Nimmt niemanden mit.' });
+    if (s.angeboten === 0) platzInfo = null;
     else if (s.frei === 0) platzInfo = h('span', { 'class': 'meta full', text: 'Voll besetzt, ' + s.mit.length + ' von ' + s.angeboten + ' Plätzen belegt.' });
     else platzInfo = h('span', { 'class': 'meta free', text: s.mit.length + ' von ' + s.angeboten + ' Plätzen belegt, noch ' + s.frei + ' frei.' });
     var kopf = [
